@@ -95,7 +95,7 @@ Con filtros por categorías:
 ### Clonar
 
 ```bash
-git clone https://github.com/TU-USUARIO/isoflash.git
+git clone https://github.com/Juancit015/isoflash.git
 cd isoflash
 ```
 
