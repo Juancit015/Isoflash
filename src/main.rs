@@ -445,6 +445,7 @@ fn draw_dashboard(ui: &mut egui::Ui, _ctx: &egui::Context, usbs: &[UsbDevice], s
     let badge_bg   = match tema { Tema::Oscuro => Color32::from_rgb(30,35,55),    Tema::Claro => Color32::from_rgb(220,225,245) };
     let badge_fg   = match tema { Tema::Oscuro => Color32::from_rgb(180,190,220), Tema::Claro => Color32::from_rgb(60,70,120) };
     let path_col   = match tema { Tema::Oscuro => Color32::from_rgb(130,140,160), Tema::Claro => Color32::from_rgb(90,100,135) };
+    let name_col   = match tema { Tema::Oscuro => Color32::WHITE,                 Tema::Claro => Color32::from_rgb(20,25,50) };
 
     egui::ScrollArea::vertical().max_height(ui.available_height()).show(ui, |ui| {
         for usb in usbs {
@@ -458,7 +459,7 @@ fn draw_dashboard(ui: &mut egui::Ui, _ctx: &egui::Context, usbs: &[UsbDevice], s
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new("🔌").size(28.0)); ui.add_space(8.0);
                         ui.vertical(|ui| {
-                            ui.label(egui::RichText::new(&usb.model).size(15.0).strong());
+                            ui.label(egui::RichText::new(&usb.model).size(15.0).strong().color(name_col));
                             ui.label(egui::RichText::new(&usb.path).size(12.0).color(path_col).monospace());
                         });
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -494,13 +495,13 @@ fn draw_dashboard(ui: &mut egui::Ui, _ctx: &egui::Context, usbs: &[UsbDevice], s
                             }
                         } else {
                             let (vtxt, is_update) = if usb.has_ventoy { ("⬆  Actualizar Ventoy", true) } else { ("⚡  Instalar Ventoy", false) };
-                            if ui.add(egui::Button::new(egui::RichText::new(vtxt).size(13.0))
+                            if ui.add(egui::Button::new(egui::RichText::new(vtxt).size(13.0).color(Color32::WHITE))
                                 .fill(Color32::from_rgb(40,80,180)).rounding(Rounding::same(7.0)).min_size(Vec2::new(165.0,32.0))).clicked() {
                                 local = Some(DashAction::InstallVentoy(usb.path.clone(), is_update));
                             }
                         }
                         ui.add_space(8.0);
-                        if ui.add(egui::Button::new(egui::RichText::new("🔥  Flashear ISO").size(13.0))
+                        if ui.add(egui::Button::new(egui::RichText::new("🔥  Flashear ISO").size(13.0).color(Color32::WHITE))
                             .fill(Color32::from_rgb(160,60,20)).rounding(Rounding::same(7.0)).min_size(Vec2::new(130.0,32.0))).clicked() {
                             local = Some(DashAction::GoFlash(usb.path.clone()));
                         }
@@ -605,7 +606,7 @@ fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filt
                             } else {
                                 (Color32::from_rgb(40,80,180), "⬇  Agregar a descargas")
                             };
-                            if ui.add(egui::Button::new(egui::RichText::new(btn_txt).size(12.0)).fill(btn_col).rounding(Rounding::same(7.0)).min_size(Vec2::new(ui.available_width(),30.0))).clicked() {
+                            if ui.add(egui::Button::new(egui::RichText::new(btn_txt).size(12.0).color(Color32::WHITE)).fill(btn_col).rounding(Rounding::same(7.0)).min_size(Vec2::new(ui.available_width(),30.0))).clicked() {
                                 clicked = true;
                             }
                         });
@@ -707,12 +708,12 @@ fn draw_descargas(ui: &mut egui::Ui, _ctx: &egui::Context, downloads: &mut Vec<D
                             }
                             if dl.status == DownloadStatus::Done {
                                 ui.add_space(6.0);
-                                if ui.add(egui::Button::new(egui::RichText::new("📁 Abrir").size(12.0)).fill(Color32::from_rgb(30,80,40)).rounding(Rounding::same(6.0)).min_size(Vec2::new(80.0,28.0))).clicked() {
+                                if ui.add(egui::Button::new(egui::RichText::new("📁 Abrir").size(12.0).color(Color32::WHITE)).fill(Color32::from_rgb(30,80,40)).rounding(Rounding::same(6.0)).min_size(Vec2::new(80.0,28.0))).clicked() {
                                     action = Some(DlAction::OpenFile(i));
                                 }
                             } else if dl.status == DownloadStatus::Queued {
                                 ui.add_space(6.0);
-                                if ui.add(egui::Button::new(egui::RichText::new("▶  Iniciar").size(12.0)).fill(Color32::from_rgb(40,80,180)).rounding(Rounding::same(6.0)).min_size(Vec2::new(90.0,28.0))).clicked() {
+                                if ui.add(egui::Button::new(egui::RichText::new("▶  Iniciar").size(12.0).color(Color32::WHITE)).fill(Color32::from_rgb(40,80,180)).rounding(Rounding::same(6.0)).min_size(Vec2::new(90.0,28.0))).clicked() {
                                     action = Some(DlAction::Start(i));
                                 }
                             }
@@ -758,7 +759,7 @@ fn draw_locales(ui: &mut egui::Ui, iso_files: &[IsoFile], scan_dir: &str, tema: 
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new(format!("📁  {}", scan_dir)).size(13.0).color(path_col).monospace());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.add(egui::Button::new(egui::RichText::new("🔄  Escanear").size(12.0)).fill(Color32::from_rgb(40,80,180)).rounding(Rounding::same(7.0)).min_size(Vec2::new(100.0,28.0))).clicked() {
+            if ui.add(egui::Button::new(egui::RichText::new("🔄  Escanear").size(12.0).color(Color32::WHITE)).fill(Color32::from_rgb(40,80,180)).rounding(Rounding::same(7.0)).min_size(Vec2::new(100.0,28.0))).clicked() {
                 rescan = true;
             }
         });
@@ -1203,7 +1204,17 @@ impl eframe::App for IsoFlash {
         let sd = Color32::from_rgb(18,18,26); let sl = Color32::from_rgb(235,237,245);
         let panel_now   = lerp_color(pd, pl, self.tema_anim);
         let sidebar_now = lerp_color(sd, sl, self.tema_anim);
-        { let mut v = ctx.style().visuals.clone(); v.panel_fill = panel_now; ctx.set_visuals(v); }
+        let text_now    = lerp_color(Color32::from_rgb(200,205,220), Color32::from_rgb(25,30,55), self.tema_anim);
+        let stroke_now  = lerp_color(Color32::from_rgb(200,205,220), Color32::from_rgb(50,55,80), self.tema_anim);
+
+        { 
+            let mut v = ctx.style().visuals.clone(); 
+            v.panel_fill = panel_now; 
+            v.override_text_color = Some(text_now);
+            v.widgets.noninteractive.fg_stroke.color = stroke_now;
+            v.widgets.inactive.fg_stroke.color = stroke_now;
+            ctx.set_visuals(v); 
+        }
 
         if self.op.active { ctx.request_repaint(); }
         let t = ctx.input(|i| i.time) as f32;
@@ -1313,14 +1324,15 @@ impl eframe::App for IsoFlash {
                     ui.add_space(10.0);
                     ui.label("Microsoft exige aceptar términos de licencia. IsoFlash no puede automatizar ese proceso.");
                     ui.add_space(8.0);
-                    ui.label(egui::RichText::new("Pasos:").size(13.0).strong());
+                    let pasos_col = match self.tema { Tema::Oscuro => Color32::WHITE, Tema::Claro => Color32::from_rgb(20,25,50) };
+                    ui.label(egui::RichText::new("Pasos:").size(13.0).strong().color(pasos_col));
                     ui.label("1.  Visita el enlace oficial"); ui.label("2.  Elige idioma y edición"); ui.label("3.  Descarga la ISO"); ui.label("4.  Agrégala en ISOs Locales");
                     ui.add_space(10.0);
                     Frame::none().fill(match self.tema { Tema::Oscuro => Color32::from_rgb(20,20,30), Tema::Claro => Color32::from_rgb(235,238,250) }).rounding(Rounding::same(6.0)).inner_margin(8.0).show(ui, |ui| {
                         ui.label(egui::RichText::new(url).size(11.0).monospace().color(Color32::from_rgb(80,160,240)));
                     });
                     ui.add_space(12.0);
-                    if ui.add(egui::Button::new(egui::RichText::new("Cerrar").size(13.0)).fill(Color32::from_rgb(40,80,180)).rounding(Rounding::same(7.0)).min_size(Vec2::new(100.0,30.0))).clicked() {
+                    if ui.add(egui::Button::new(egui::RichText::new("Cerrar").size(13.0).color(Color32::WHITE)).fill(Color32::from_rgb(40,80,180)).rounding(Rounding::same(7.0)).min_size(Vec2::new(100.0,30.0))).clicked() {
                         self.cat_win_popup = false;
                     }
                     ui.add_space(4.0);
