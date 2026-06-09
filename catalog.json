@@ -1,13 +1,14 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
   "updated": "2026-06-08",
   "distros": [
     {
       "id": "arch",
       "name": "Arch Linux",
-      "logo": "arch.png",
-      "description": "Rolling release minimalista, para expertos",
+      "logo": "arch.svg",
+      "description": "Rolling release minimalista, para expertos. Sin systemd restricciones.",
       "category": "rolling",
+      "arch": "x86_64",
       "size_mb": 870,
       "url": "https://fastly.mirror.pkgbuild.com/iso/2026.06.01/archlinux-2026.06.01-x86_64.iso",
       "is_windows": false
@@ -15,9 +16,10 @@
     {
       "id": "manjaro-kde",
       "name": "Manjaro 26.0 KDE",
-      "logo": "manjaro.png",
-      "description": "Arch con KDE Plasma 6.5, fácil de instalar",
+      "logo": "manjaro.svg",
+      "description": "Arch con KDE Plasma 6.5 y asistente gráfico de instalación",
       "category": "rolling",
+      "arch": "x86_64",
       "size_mb": 3800,
       "url": "https://download.manjaro.org/kde/26.0/manjaro-kde-26.0-260105-linux618.iso",
       "is_windows": false
@@ -25,9 +27,10 @@
     {
       "id": "manjaro-gnome",
       "name": "Manjaro 26.0 GNOME",
-      "logo": "manjaro.png",
+      "logo": "manjaro.svg",
       "description": "Arch con GNOME 49, moderno y limpio",
       "category": "rolling",
+      "arch": "x86_64",
       "size_mb": 3600,
       "url": "https://download.manjaro.org/gnome/26.0/manjaro-gnome-26.0-260105-linux618.iso",
       "is_windows": false
@@ -35,9 +38,10 @@
     {
       "id": "manjaro-xfce",
       "name": "Manjaro 26.0 Xfce",
-      "logo": "manjaro.png",
-      "description": "Arch con Xfce 4.20, ligero y estable",
+      "logo": "manjaro.svg",
+      "description": "Arch con Xfce 4.20, la edición más ligera de Manjaro",
       "category": "rolling",
+      "arch": "x86_64",
       "size_mb": 3400,
       "url": "https://download.manjaro.org/xfce/26.0/manjaro-xfce-26.0-260105-linux618.iso",
       "is_windows": false
@@ -45,9 +49,10 @@
     {
       "id": "endeavouros",
       "name": "EndeavourOS 2026.03 Titan",
-      "logo": "endeavouros.png",
-      "description": "Arch con Calamares, mínimo bloat, KDE Plasma 6.6, 3.4 GB",
+      "logo": "endeavouros.svg",
+      "description": "Arch con Calamares, mínimo bloat, KDE Plasma 6.6",
       "category": "rolling",
+      "arch": "x86_64",
       "size_mb": 3400,
       "url": "https://mirror.alpix.eu/endeavouros/repo/EndeavourOS/x86_64/EndeavourOS_Titan-2026.03.06.iso",
       "is_windows": false
@@ -55,19 +60,54 @@
     {
       "id": "opensuse-tw",
       "name": "openSUSE Tumbleweed",
-      "logo": "opensuse.png",
-      "description": "Rolling enterprise-grade con YaST y snapshots Btrfs",
+      "logo": "opensuse.svg",
+      "description": "Rolling enterprise-grade con YaST, snapshots Btrfs, KDE/GNOME",
       "category": "rolling",
+      "arch": "x86_64",
       "size_mb": 1200,
       "url": "https://download.opensuse.org/tumbleweed/iso/openSUSE-Tumbleweed-DVD-x86_64-Current.iso",
       "is_windows": false
     },
     {
+      "id": "cachyos",
+      "name": "CachyOS KDE",
+      "logo": "cachyos.svg",
+      "description": "Arch optimizada, scheduler BORE, mejor rendimiento gaming y diario",
+      "category": "rolling",
+      "arch": "x86_64",
+      "size_mb": 2700,
+      "url": "https://mirror.cachyos.org/ISO/kde/latest/cachyos-kde-linux-latest.iso",
+      "is_windows": false
+    },
+    {
+      "id": "void-xfce",
+      "name": "Void Linux (Xfce)",
+      "logo": "void.svg",
+      "description": "Rolling independiente, runit en vez de systemd, muy estable",
+      "category": "rolling",
+      "arch": "x86_64",
+      "size_mb": 900,
+      "url": "https://repo-default.voidlinux.org/live/current/void-live-x86_64-20250202-xfce.iso",
+      "is_windows": false
+    },
+    {
+      "id": "void-musl",
+      "name": "Void Linux musl (base)",
+      "logo": "void.svg",
+      "description": "Void con musl libc en vez de glibc, más seguro y ligero",
+      "category": "rolling",
+      "arch": "x86_64",
+      "size_mb": 700,
+      "url": "https://repo-default.voidlinux.org/live/current/void-live-x86_64-musl-20250202.iso",
+      "is_windows": false
+    },
+    {
       "id": "ubuntu-2604",
       "name": "Ubuntu 26.04 LTS",
-      "logo": "ubuntu.png",
-      "description": "Resolute Raccoon, GNOME 50, soporte hasta 2031",
+      "logo": "ubuntu.svg",
+      "description": "Resolute Raccoon, GNOME 50, soporte 5 años hasta 2031",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 6000,
       "url": "https://releases.ubuntu.com/26.04/ubuntu-26.04-desktop-amd64.iso",
       "is_windows": false
@@ -75,9 +115,10 @@
     {
       "id": "kubuntu-2604",
       "name": "Kubuntu 26.04 LTS",
-      "logo": "kubuntu.png",
+      "logo": "kubuntu.svg",
       "description": "Ubuntu con KDE Plasma 6.6, altamente configurable",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 4200,
       "url": "https://cdimage.ubuntu.com/kubuntu/releases/26.04/release/kubuntu-26.04-desktop-amd64.iso",
       "is_windows": false
@@ -85,9 +126,10 @@
     {
       "id": "xubuntu-2604",
       "name": "Xubuntu 26.04 LTS",
-      "logo": "xubuntu.png",
+      "logo": "xubuntu.svg",
       "description": "Ubuntu con Xfce 4.20, ligero, 20 aniversario del proyecto",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 2200,
       "url": "https://cdimage.ubuntu.com/xubuntu/releases/26.04/release/xubuntu-26.04-desktop-amd64.iso",
       "is_windows": false
@@ -95,9 +137,10 @@
     {
       "id": "lubuntu-2604",
       "name": "Lubuntu 26.04 LTS",
-      "logo": "lubuntu.png",
+      "logo": "lubuntu.svg",
       "description": "Ubuntu con LXQt 2.3, el más ligero, ideal para hardware viejo",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 1800,
       "url": "https://cdimage.ubuntu.com/lubuntu/releases/26.04/release/lubuntu-26.04-desktop-amd64.iso",
       "is_windows": false
@@ -105,9 +148,10 @@
     {
       "id": "ubuntu-budgie-2604",
       "name": "Ubuntu Budgie 26.04 LTS",
-      "logo": "ubuntubudgie.png",
+      "logo": "ubuntubudgie.svg",
       "description": "Ubuntu con Budgie 10.10, elegante, Wayland por defecto",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 3200,
       "url": "https://cdimage.ubuntu.com/ubuntu-budgie/releases/26.04/release/ubuntu-budgie-26.04-desktop-amd64.iso",
       "is_windows": false
@@ -115,9 +159,10 @@
     {
       "id": "ubuntu-cinnamon-2604",
       "name": "Ubuntu Cinnamon 26.04 LTS",
-      "logo": "ubuntucinnamon.png",
+      "logo": "ubuntucinnamon.svg",
       "description": "Ubuntu con Cinnamon 6.4, layout familiar tipo Windows",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 3400,
       "url": "https://cdimage.ubuntu.com/ubuntucinnamon/releases/26.04/release/ubuntu-cinnamon-26.04-desktop-amd64.iso",
       "is_windows": false
@@ -125,19 +170,76 @@
     {
       "id": "ubuntu-studio-2604",
       "name": "Ubuntu Studio 26.04 LTS",
-      "logo": "ubuntustudio.png",
-      "description": "Ubuntu para producción audiovisual, KDE Plasma + JACK",
+      "logo": "ubuntustudio.svg",
+      "description": "Ubuntu para produccion audiovisual, KDE Plasma + kernel RT",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 4800,
       "url": "https://cdimage.ubuntu.com/ubuntustudio/releases/26.04/release/ubuntustudio-26.04-dvd-amd64.iso",
       "is_windows": false
     },
     {
+      "id": "kde-neon",
+      "name": "KDE neon 20260605",
+      "logo": "kde.svg",
+      "description": "Ubuntu 24.04 LTS con el KDE Plasma mas reciente disponible",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 1900,
+      "url": "https://files.kde.org/neon/images/user/20260605-0902/neon-user-20260605-0902.iso",
+      "is_windows": false
+    },
+    {
+      "id": "popos-2404",
+      "name": "Pop!_OS 24.04 LTS",
+      "logo": "popos.svg",
+      "description": "System76, escritorio COSMIC propio en Rust, optimo para productividad",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 2800,
+      "url": "https://iso.pop-os.org/24.04/amd64/intel/latest/pop-os_24.04_amd64_intel_latest.iso",
+      "is_windows": false
+    },
+    {
+      "id": "popos-2404-nvidia",
+      "name": "Pop!_OS 24.04 LTS (NVIDIA)",
+      "logo": "popos.svg",
+      "description": "Pop!_OS con drivers NVIDIA propietarios preinstalados",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 3200,
+      "url": "https://iso.pop-os.org/24.04/amd64/nvidia/latest/pop-os_24.04_amd64_nvidia_latest.iso",
+      "is_windows": false
+    },
+    {
+      "id": "zorin-18-core",
+      "name": "Zorin OS 18.1 Core",
+      "logo": "zorin.svg",
+      "description": "Ubuntu 24.04 base, GNOME con look Windows/macOS, muy pulido",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 3700,
+      "url": "https://zorinos.com/download/18/core/64/",
+      "is_windows": false
+    },
+    {
+      "id": "zorin-18-lite",
+      "name": "Zorin OS 18.1 Lite",
+      "logo": "zorin.svg",
+      "description": "Zorin con Xfce, para PCs con pocos recursos",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 2200,
+      "url": "https://zorinos.com/download/18/lite/64/",
+      "is_windows": false
+    },
+    {
       "id": "mint-cinnamon",
       "name": "Linux Mint 22.3 Cinnamon",
-      "logo": "mint.png",
-      "description": "Zena — Cinnamon 6.6, basada en Ubuntu 24.04 LTS, soporte hasta 2029",
+      "logo": "mint.svg",
+      "description": "Zena — Cinnamon 6.6, basada en Ubuntu 24.04, soporte hasta 2029",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 2900,
       "url": "https://mirrors.layeronline.com/linuxmint/stable/22.3/linuxmint-22.3-cinnamon-64bit.iso",
       "is_windows": false
@@ -145,9 +247,10 @@
     {
       "id": "mint-xfce",
       "name": "Linux Mint 22.3 Xfce",
-      "logo": "mint.png",
-      "description": "Zena — Xfce 4.18, ligero y rápido",
+      "logo": "mint.svg",
+      "description": "Zena — Xfce 4.18, ligero, para PCs con pocos recursos",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 2500,
       "url": "https://mirrors.layeronline.com/linuxmint/stable/22.3/linuxmint-22.3-xfce-64bit.iso",
       "is_windows": false
@@ -155,19 +258,32 @@
     {
       "id": "mint-mate",
       "name": "Linux Mint 22.3 MATE",
-      "logo": "mint.png",
-      "description": "Zena — MATE 1.26, clásico y estable",
+      "logo": "mint.svg",
+      "description": "Zena — MATE 1.26, clasico y estable, muy compatible",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 2600,
       "url": "https://mirrors.layeronline.com/linuxmint/stable/22.3/linuxmint-22.3-mate-64bit.iso",
       "is_windows": false
     },
     {
+      "id": "lmde-7",
+      "name": "LMDE 7 Cinnamon",
+      "logo": "mint.svg",
+      "description": "Linux Mint Debian Edition 7, sin base Ubuntu, mas independiente",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 2900,
+      "url": "https://mirrors.layeronline.com/linuxmint/debian/7/lmde-7-cinnamon-64bit.iso",
+      "is_windows": false
+    },
+    {
       "id": "debian-13",
-      "name": "Debian 13 Trixie",
-      "logo": "debian.png",
+      "name": "Debian 13 Trixie (netinst)",
+      "logo": "debian.svg",
       "description": "Estable, universal, base de Ubuntu y cientos de distros",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 700,
       "url": "https://cdimage.debian.org/cdimage/daily-builds/daily/arch-latest/amd64/iso-cd/debian-testing-amd64-netinst.iso",
       "is_windows": false
@@ -175,9 +291,10 @@
     {
       "id": "fedora-44-wks",
       "name": "Fedora 44 Workstation",
-      "logo": "fedora.png",
-      "description": "GNOME 50, Linux 6.19, sin X11 en Workstation",
+      "logo": "fedora.svg",
+      "description": "GNOME 50, Linux 6.19, bleeding edge, sin X11",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 2700,
       "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-x86_64-44-1.1.iso",
       "is_windows": false
@@ -185,9 +302,10 @@
     {
       "id": "fedora-44-kde",
       "name": "Fedora 44 KDE",
-      "logo": "fedora.png",
-      "description": "Spin KDE Plasma 6.6",
+      "logo": "fedora.svg",
+      "description": "Spin KDE Plasma 6.6 sobre base Fedora",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 2600,
       "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-KDE-Live-x86_64-44-1.1.iso",
       "is_windows": false
@@ -195,9 +313,10 @@
     {
       "id": "fedora-44-xfce",
       "name": "Fedora 44 Xfce",
-      "logo": "fedora.png",
+      "logo": "fedora.svg",
       "description": "Spin Xfce 4.20, ligero sobre base Fedora",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 2700,
       "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-Xfce-Live-x86_64-44-1.1.iso",
       "is_windows": false
@@ -205,9 +324,10 @@
     {
       "id": "fedora-44-cinnamon",
       "name": "Fedora 44 Cinnamon",
-      "logo": "fedora.png",
-      "description": "Spin Cinnamon, layout tradicional",
+      "logo": "fedora.svg",
+      "description": "Spin Cinnamon 6.4, layout tradicional sobre Fedora",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 3000,
       "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-Cinnamon-Live-x86_64-44-1.1.iso",
       "is_windows": false
@@ -215,9 +335,10 @@
     {
       "id": "fedora-44-mate",
       "name": "Fedora 44 MATE-Compiz",
-      "logo": "fedora.png",
-      "description": "Spin MATE con efectos Compiz, clásico potente",
+      "logo": "fedora.svg",
+      "description": "Spin MATE con efectos Compiz, clasico y potente",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 3000,
       "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-MATE_Compiz-Live-x86_64-44-1.1.iso",
       "is_windows": false
@@ -225,9 +346,10 @@
     {
       "id": "fedora-44-i3",
       "name": "Fedora 44 i3",
-      "logo": "fedora.png",
+      "logo": "fedora.svg",
       "description": "Spin i3 tiling window manager, para usuarios avanzados",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 2300,
       "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-i3-Live-x86_64-44-1.1.iso",
       "is_windows": false
@@ -235,9 +357,10 @@
     {
       "id": "fedora-44-lxqt",
       "name": "Fedora 44 LXQt",
-      "logo": "fedora.png",
-      "description": "Spin LXQt 2.x, extremadamente ligero",
+      "logo": "fedora.svg",
+      "description": "Spin LXQt, extremadamente ligero sobre Fedora",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 2300,
       "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-LXQt-Live-x86_64-44-1.1.iso",
       "is_windows": false
@@ -245,39 +368,208 @@
     {
       "id": "fedora-44-sway",
       "name": "Fedora 44 Sway",
-      "logo": "fedora.png",
-      "description": "Spin Sway (tiling Wayland), reemplazo moderno de i3",
+      "logo": "fedora.svg",
+      "description": "Spin Sway, tiling Wayland nativo, reemplazo moderno de i3",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 2200,
       "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-Sway-Live-x86_64-44-1.1.iso",
       "is_windows": false
     },
     {
-      "id": "antix-23",
-      "name": "antiX 23",
-      "logo": "antix.png",
-      "description": "Sin systemd, ideal para hardware antiguo, muy ligera",
+      "id": "nixos-2605-gnome",
+      "name": "NixOS 26.05 Yarara (GNOME)",
+      "logo": "nixos.svg",
+      "description": "Declarativo, reproducible, GNOME 50, el OS mas diferente que existe",
       "category": "lts",
-      "size_mb": 1100,
-      "url": "https://sourceforge.net/projects/antix-linux/files/Final/antiX-23/antiX-23_x64-full.iso",
+      "arch": "x86_64",
+      "size_mb": 2400,
+      "url": "https://channels.nixos.org/nixos-26.05/latest-nixos-gnome-x86_64-linux.iso",
+      "is_windows": false
+    },
+    {
+      "id": "nixos-2605-kde",
+      "name": "NixOS 26.05 Yarara (KDE)",
+      "logo": "nixos.svg",
+      "description": "NixOS con KDE Plasma 6.6, declarativo y reproducible",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 2300,
+      "url": "https://channels.nixos.org/nixos-26.05/latest-nixos-plasma6-x86_64-linux.iso",
+      "is_windows": false
+    },
+    {
+      "id": "nixos-2605-minimal",
+      "name": "NixOS 26.05 Minimal",
+      "logo": "nixos.svg",
+      "description": "NixOS solo CLI, para construir tu sistema desde cero",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 1400,
+      "url": "https://channels.nixos.org/nixos-26.05/latest-nixos-minimal-x86_64-linux.iso",
+      "is_windows": false
+    },
+    {
+      "id": "deepin-2510",
+      "name": "Deepin 25.1.0",
+      "logo": "deepin.svg",
+      "description": "El sistema Linux mas bello, DDE Qt, base Debian, desarrollado en China",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 6000,
+      "url": "https://cdimage.deepin.com/releases/25.1.0/deepin-desktop-community-25.1.0-amd64.iso",
+      "is_windows": false
+    },
+    {
+      "id": "mx-252-xfce",
+      "name": "MX Linux 25.2 Xfce",
+      "logo": "mxlinux.svg",
+      "description": "Debian estable + herramientas MX, sysvinit o systemd a eleccion",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 2400,
+      "url": "https://sourceforge.net/projects/mx-linux/files/Final/Xfce/MX-25.2_x64.iso",
+      "is_windows": false
+    },
+    {
+      "id": "mx-252-kde",
+      "name": "MX Linux 25.2 KDE",
+      "logo": "mxlinux.svg",
+      "description": "MX Linux con KDE Plasma 6, hardware reciente (AHS)",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 2800,
+      "url": "https://sourceforge.net/projects/mx-linux/files/Final/KDE/MX-25.2_KDE_x64.iso",
+      "is_windows": false
+    },
+    {
+      "id": "mx-252-fluxbox",
+      "name": "MX Linux 25.2 Fluxbox",
+      "logo": "mxlinux.svg",
+      "description": "MX Linux ultra ligero con Fluxbox, para hardware muy viejo",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 2000,
+      "url": "https://sourceforge.net/projects/mx-linux/files/Final/Fluxbox/MX-25.2_fluxbox_x64.iso",
+      "is_windows": false
+    },
+    {
+      "id": "opensuse-leap",
+      "name": "openSUSE Leap 15.7",
+      "logo": "opensuse.svg",
+      "description": "Version LTS de openSUSE, estable, para produccion",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 4200,
+      "url": "https://download.opensuse.org/distribution/leap/15.7/iso/openSUSE-Leap-15.7-DVD-x86_64-Media.iso",
       "is_windows": false
     },
     {
       "id": "alpine-3234",
       "name": "Alpine Linux 3.23.4",
-      "logo": "alpine.png",
-      "description": "Mínima, musl + busybox, segura, ideal para contenedores",
+      "logo": "alpine.svg",
+      "description": "Minima, musl + busybox, 230 MB, para contenedores y hardware viejo",
       "category": "lts",
+      "arch": "x86_64",
       "size_mb": 230,
       "url": "https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/x86_64/alpine-standard-3.23.4-x86_64.iso",
       "is_windows": false
     },
     {
+      "id": "q4os-plasma",
+      "name": "Q4OS 6.6 Andromeda (Plasma)",
+      "logo": "q4os.svg",
+      "description": "Debian base, KDE Plasma, ideal para PCs viejos con buena GPU",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 1782,
+      "url": "https://sourceforge.net/projects/q4os/files/stable/q4os-6.6-x64.r1.iso",
+      "is_windows": false
+    },
+    {
+      "id": "q4os-trinity",
+      "name": "Q4OS 6.6 Andromeda (Trinity)",
+      "logo": "q4os.svg",
+      "description": "Debian base, Trinity DE (estilo KDE 3), ultra ligero, 512MB RAM",
+      "category": "lts",
+      "arch": "x86_64",
+      "size_mb": 1418,
+      "url": "https://sourceforge.net/projects/q4os/files/stable/q4os-6.6-trinity-x64.r1.iso",
+      "is_windows": false
+    },
+    {
+      "id": "antix-26-full",
+      "name": "antiX 26 Full (x86_64)",
+      "logo": "antix.svg",
+      "description": "Sin systemd/elogind, 4 WMs, LibreOffice incluido, 2 kernels",
+      "category": "nosystemd",
+      "arch": "x86_64",
+      "size_mb": 1800,
+      "url": "https://sourceforge.net/projects/antix-linux/files/Final/antiX-26/antiX-26_x64-full.iso",
+      "is_windows": false
+    },
+    {
+      "id": "antix-26-core",
+      "name": "antiX 26 Core (x86_64)",
+      "logo": "antix.svg",
+      "description": "Sin systemd, sin X11, soporte wireless, base para construir",
+      "category": "nosystemd",
+      "arch": "x86_64",
+      "size_mb": 520,
+      "url": "https://sourceforge.net/projects/antix-linux/files/Final/antiX-26/antiX-26_x64-core.iso",
+      "is_windows": false
+    },
+    {
+      "id": "antix-26-full-32",
+      "name": "antiX 26 Full (i386/32bit)",
+      "logo": "antix.svg",
+      "description": "Sin systemd, para hardware de 32 bits muy viejo (pre-2007)",
+      "category": "nosystemd",
+      "arch": "i386",
+      "size_mb": 1700,
+      "url": "https://sourceforge.net/projects/antix-linux/files/Final/antiX-26/antiX-26_386-full.iso",
+      "is_windows": false
+    },
+    {
+      "id": "antix-26-core-32",
+      "name": "antiX 26 Core (i386/32bit)",
+      "logo": "antix.svg",
+      "description": "Sin systemd, sin X11, base minima para hardware 32 bits",
+      "category": "nosystemd",
+      "arch": "i386",
+      "size_mb": 500,
+      "url": "https://sourceforge.net/projects/antix-linux/files/Final/antiX-26/antiX-26_386-core.iso",
+      "is_windows": false
+    },
+    {
+      "id": "void-base",
+      "name": "Void Linux base (glibc)",
+      "logo": "void.svg",
+      "description": "Rolling, runit, glibc, CLI puro para construir tu sistema",
+      "category": "nosystemd",
+      "arch": "x86_64",
+      "size_mb": 700,
+      "url": "https://repo-default.voidlinux.org/live/current/void-live-x86_64-20250202.iso",
+      "is_windows": false
+    },
+    {
+      "id": "slackware-150",
+      "name": "Slackware 15.0",
+      "logo": "slackware.svg",
+      "description": "La distro mas antigua activa, sin gestor de paquetes de dependencias",
+      "category": "nosystemd",
+      "arch": "x86_64",
+      "size_mb": 3700,
+      "url": "https://mirrors.slackware.com/slackware/slackware64-15.0/iso/slackware64-15.0-install-dvd.iso",
+      "is_windows": false
+    },
+    {
       "id": "ubuntu-server-2604",
       "name": "Ubuntu Server 26.04 LTS",
-      "logo": "ubuntu.png",
+      "logo": "ubuntu.svg",
       "description": "Servidor LTS cloud-ready, soporte hasta 2031",
       "category": "server",
+      "arch": "x86_64",
       "size_mb": 2600,
       "url": "https://releases.ubuntu.com/26.04/ubuntu-26.04-live-server-amd64.iso",
       "is_windows": false
@@ -285,9 +577,10 @@
     {
       "id": "debian-13-net",
       "name": "Debian 13 Netinstall",
-      "logo": "debian.png",
-      "description": "Instalación mínima por red, ~700 MB, base universal",
+      "logo": "debian.svg",
+      "description": "Instalacion minima por red, ~700 MB, base universal de servidores",
       "category": "server",
+      "arch": "x86_64",
       "size_mb": 700,
       "url": "https://cdimage.debian.org/cdimage/daily-builds/daily/arch-latest/amd64/iso-cd/debian-testing-amd64-netinst.iso",
       "is_windows": false
@@ -295,19 +588,32 @@
     {
       "id": "almalinux-10",
       "name": "AlmaLinux 10.2",
-      "logo": "almalinux.png",
-      "description": "Reemplazo CentOS, 100% compatible RHEL 10",
+      "logo": "almalinux.svg",
+      "description": "Reemplazo CentOS, 100% compatible RHEL 10, soporte hasta 2035",
       "category": "server",
+      "arch": "x86_64",
       "size_mb": 1900,
       "url": "https://repo.almalinux.org/almalinux/10/isos/x86_64/AlmaLinux-10-latest-x86_64-dvd.iso",
       "is_windows": false
     },
     {
+      "id": "rocky-95",
+      "name": "Rocky Linux 9.5",
+      "logo": "rocky.svg",
+      "description": "Otro reemplazo CentOS, 1:1 RHEL 9, muy usado en produccion",
+      "category": "server",
+      "arch": "x86_64",
+      "size_mb": 2200,
+      "url": "https://download.rockylinux.org/pub/rocky/9/isos/x86_64/Rocky-9.5-x86_64-minimal.iso",
+      "is_windows": false
+    },
+    {
       "id": "fedora-44-server",
       "name": "Fedora 44 Server",
-      "logo": "fedora.png",
-      "description": "Servidor Fedora con tecnologías modernas de datacenter",
+      "logo": "fedora.svg",
+      "description": "Servidor Fedora con Cockpit, tecnologias modernas de datacenter",
       "category": "server",
+      "arch": "x86_64",
       "size_mb": 2200,
       "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Server/x86_64/iso/Fedora-Server-dvd-x86_64-44-1.1.iso",
       "is_windows": false
@@ -315,9 +621,10 @@
     {
       "id": "kali-20261",
       "name": "Kali Linux 2026.1",
-      "logo": "kali.png",
-      "description": "Pentesting y hacking etico, +600 herramientas, BackTrack mode",
+      "logo": "kali.svg",
+      "description": "Pentesting y hacking etico, +600 herramientas, rolling base Debian",
       "category": "security",
+      "arch": "x86_64",
       "size_mb": 4000,
       "url": "https://cdimage.kali.org/current/kali-linux-2026.1-installer-amd64.iso",
       "is_windows": false
@@ -325,9 +632,10 @@
     {
       "id": "tails-781",
       "name": "Tails 7.8.1",
-      "logo": "tails.png",
+      "logo": "tails.svg",
       "description": "Privacidad total via Tor, deja cero rastros en el sistema",
       "category": "security",
+      "arch": "x86_64",
       "size_mb": 1800,
       "url": "https://download.tails.net/tails/stable/tails-amd64-7.8.1/tails-amd64-7.8.1.img",
       "is_windows": false
@@ -335,9 +643,10 @@
     {
       "id": "parrot-70",
       "name": "ParrotOS 7.0 Security",
-      "logo": "parrot.png",
-      "description": "Echo — KDE Plasma por defecto, seguridad y privacidad",
+      "logo": "parrot.svg",
+      "description": "Echo — KDE Plasma por defecto, seguridad y privacidad, base Debian",
       "category": "security",
+      "arch": "x86_64",
       "size_mb": 3200,
       "url": "https://deb.parrot.sh/parrot/iso/7.0/Parrot-security-7.0_amd64.iso",
       "is_windows": false
@@ -345,29 +654,21 @@
     {
       "id": "nobara-43",
       "name": "Nobara 43",
-      "logo": "nobara.png",
-      "description": "Fedora optimizada para gaming, Proton + OBS preinstalado",
+      "logo": "nobara.svg",
+      "description": "Fedora optimizada para gaming, Proton + OBS + fixes preinstalados",
       "category": "gaming",
+      "arch": "x86_64",
       "size_mb": 6600,
       "url": "https://nobara-images.nobaraproject.org/Nobara-43-Official-2026-04-19.iso",
       "is_windows": false
     },
     {
-      "id": "cachyos",
-      "name": "CachyOS KDE",
-      "logo": "cachyos.png",
-      "description": "Arch optimizada, scheduler BORE, mejor rendimiento gaming",
-      "category": "gaming",
-      "size_mb": 2700,
-      "url": "https://mirror.cachyos.org/ISO/kde/latest/cachyos-kde-linux-latest.iso",
-      "is_windows": false
-    },
-    {
       "id": "bazzite",
       "name": "Bazzite",
-      "logo": "bazzite.png",
-      "description": "Gaming inmutable, base Fedora, listo para Steam Deck y PC",
+      "logo": "bazzite.svg",
+      "description": "Gaming inmutable base Fedora, listo para Steam Deck y PC gaming",
       "category": "gaming",
+      "arch": "x86_64",
       "size_mb": 3900,
       "url": "https://dl.bazzite.gg/Bazzite-latest-x86_64.iso",
       "is_windows": false
@@ -375,9 +676,10 @@
     {
       "id": "windows-11",
       "name": "Windows 11",
-      "logo": "windows.png",
-      "description": "Requiere pasos adicionales - ver instrucciones",
+      "logo": "windows.svg",
+      "description": "Requiere pasos adicionales — ver instrucciones en el programa",
       "category": "windows",
+      "arch": "x86_64",
       "size_mb": 5500,
       "url": "https://www.microsoft.com/software-download/windows11",
       "is_windows": true
@@ -385,9 +687,10 @@
     {
       "id": "windows-10",
       "name": "Windows 10",
-      "logo": "windows.png",
-      "description": "Requiere pasos adicionales - ver instrucciones",
+      "logo": "windows.svg",
+      "description": "Requiere pasos adicionales — ver instrucciones en el programa",
       "category": "windows",
+      "arch": "x86_64",
       "size_mb": 5800,
       "url": "https://www.microsoft.com/software-download/windows10",
       "is_windows": true
