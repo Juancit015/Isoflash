@@ -571,7 +571,8 @@ fn sidebar_btn(ui: &mut egui::Ui, ctx: &egui::Context, panel: &mut Panel, tema: 
 
 // ─── Draw Dashboard ───────────────────────────────────────────────────────────
 
-fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], scanning: bool, op_active: bool, op_cancel: bool, tema: &Tema, action: &mut Option<DashAction>) {
+fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], _scanning: bool, op_active: bool, op_cancel: bool, tema: &Tema, action: &mut Option<DashAction>) {
+    // Estado vacío — siempre muestra el mismo mensaje, el scan es completamente silencioso
     if usbs.is_empty() {
         let ic = match tema { Tema::Oscuro=>Color32::from_rgb(60,65,90),    Tema::Claro=>Color32::from_rgb(150,160,195) };
         let tc = match tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(80,90,120) };
@@ -600,7 +601,8 @@ fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], scanning: bool, op_acti
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new("🔌").size(28.0)); ui.add_space(8.0);
                         ui.vertical(|ui| {
-                            ui.label(egui::RichText::new(&usb.model).size(15.0).strong());
+                            let model_col = match tema { Tema::Oscuro=>Color32::WHITE, Tema::Claro=>Color32::from_rgb(20,25,50) };
+                            ui.label(egui::RichText::new(&usb.model).size(15.0).strong().color(model_col));
                             ui.label(egui::RichText::new(&usb.path).size(12.0).color(path_col).monospace());
                         });
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -1343,7 +1345,7 @@ impl IsoFlash {
                 v.widgets.active.bg_fill    = Color32::from_rgb(70,110,210);  v.widgets.active.rounding   = Rounding::same(8.0);
                 v.widgets.active.fg_stroke.color   = Color32::WHITE;
                 v.selection.bg_fill = Color32::from_rgb(70,110,210);
-                v.override_text_color = Some(Color32::from_rgb(25,30,55));
+                v.override_text_color = None; // dejar que cada widget maneje su propio color
                 ctx.set_visuals(v);
             }
         }
@@ -1444,13 +1446,26 @@ impl eframe::App for IsoFlash {
         let panel_now   = lerp_color(Color32::from_rgb(15,15,20),  Color32::from_rgb(245,246,250), self.tema_anim);
         let sidebar_now = lerp_color(Color32::from_rgb(18,18,26),  Color32::from_rgb(235,237,245), self.tema_anim);
         { let mut v=ctx.style().visuals.clone(); v.panel_fill=panel_now; ctx.set_visuals(v); }
-        if self.op.active { ctx.request_repaint(); }
 
-        // Logo pulso
-        let t  = ctx.input(|i|i.time) as f32;
-        let pl = ((t*1.8).sin()*0.12+0.88).clamp(0.0,1.0);
+        // Título dinámico: solo muestra actividad cuando actualiza catálogo
+        let title = if self.catalog_updating { "IsoFlash  ↻" } else { "IsoFlash" };
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.to_string()));
+
+        // Logo pulso — usa t del frame actual
+        let t   = ctx.input(|i|i.time) as f32;
+        let pl  = ((t*1.8).sin()*0.12+0.88).clamp(0.0,1.0);
         let logo_col = Color32::from_rgb((80.0*pl) as u8,(140.0*pl) as u8,(255.0*pl) as u8);
-        ctx.request_repaint_after(Duration::from_millis(50));
+
+        // Repaint continuo solo cuando hay animaciones activas
+        let needs_continuous = self.op.active
+            || self.catalog_updating
+            || self.downloads.iter().any(|d| d.status == DownloadStatus::Downloading)
+            || (self.tema_anim - t_target).abs() > 0.01;
+        if needs_continuous {
+            ctx.request_repaint_after(Duration::from_millis(50));
+        } else {
+            ctx.request_repaint_after(Duration::from_millis(500));
+        }
 
         let op_active = self.op.active;
         let op_cancel = self.op.cancel_tx.is_some();
