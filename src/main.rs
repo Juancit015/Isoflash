@@ -3,6 +3,8 @@
 
 use eframe::egui;
 use egui::{Color32, Frame, Rounding, Stroke, Vec2, Visuals};
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::process::Command;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::{Duration, Instant};
@@ -12,6 +14,66 @@ use std::time::{Duration, Instant};
 const CATALOG_JSON: &str = include_str!("../catalog.json");
 const CATALOG_URL:  &str = "https://raw.githubusercontent.com/Juancit015/Isoflash/main/catalog.json";
 const VENTOY_LOCAL: &str = "src/ventoy-1.1.12";
+
+// ─── i18n / Lenguaje ──────────────────────────────────────────────────────────
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Language { English, Spanish, Chinese }
+
+impl Default for Language {
+    fn default() -> Self {
+        // Detectar del entorno Linux: LANG, LC_ALL, LC_MESSAGES
+        let lang = std::env::var("LANG")
+            .or_else(|_| std::env::var("LC_ALL"))
+            .or_else(|_| std::env::var("LC_MESSAGES"))
+            .unwrap_or_default()
+            .to_lowercase();
+        if lang.starts_with("zh") || lang.contains("zh_cn") {
+            Language::Chinese
+        } else if lang.starts_with("es") {
+            Language::Spanish
+        } else {
+            Language::English
+        }
+    }
+}
+
+impl std::fmt::Display for Language {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self { Self::English=>write!(f,"English"), Self::Spanish=>write!(f,"Spanish"), Self::Chinese=>write!(f,"Chinese") }
+    }
+}
+
+fn load_i18n(lang: Language) -> HashMap<String, String> {
+    let json = match lang {
+        Language::English => include_str!("i18n/en.json"),
+        Language::Spanish => include_str!("i18n/es.json"),
+        Language::Chinese => include_str!("i18n/zh.json"),
+    };
+    serde_json::from_str(json).unwrap_or_default()
+}
+
+// Persistencia de config (idioma, directorio, velocidad)
+fn save_app_config(lang: Language, download_dir: &str, speed_limit: &SpeedLimit) {
+    let dir = format!("{}/.config/isoflash", std::env::var("HOME").unwrap_or_else(|_| ".".into()));
+    let _ = std::fs::create_dir_all(&dir);
+    let j = serde_json::json!({ "lang": lang.to_string(), "download_dir": download_dir, "speed_limit": speed_limit.label_key() });
+    let _ = std::fs::write(format!("{}/config.json", dir), serde_json::to_string_pretty(&j).unwrap_or_default());
+}
+
+fn load_app_config() -> Option<(Language, String, String)> {
+    let path = format!("{}/config.json", format!("{}/.config/isoflash", std::env::var("HOME").unwrap_or_else(|_| ".".into())));
+    let s = std::fs::read_to_string(&path).ok()?;
+    let v: serde_json::Value = serde_json::from_str(&s).ok()?;
+    let lang = match v["lang"].as_str().unwrap_or("English") {
+        "Spanish" => Language::Spanish,
+        "Chinese" => Language::Chinese,
+        _ => Language::English,
+    };
+    let d = v["download_dir"].as_str().unwrap_or("").to_string();
+    let sp = v["speed_limit"].as_str().unwrap_or("Max").to_string();
+    Some((lang, d, sp))
+}
 
 fn load_app_icon() -> Option<egui::IconData> {
     let bytes = include_bytes!("logo/isoflashLogo.png");
@@ -58,9 +120,19 @@ impl SpeedLimit {
         match self { Self::Low=>"500k", Self::Medium=>"2m", Self::High=>"8m", Self::Max=>return None }
             .into()
     }
-    fn label(&self) -> &'static str {
-        match self { Self::Low=>"Baja  (~500 KB/s)", Self::Medium=>"Media (~2 MB/s)", Self::High=>"Alta  (~8 MB/s)", Self::Max=>"Maxima (sin limite)" }
+    fn label_key(&self) -> &'static str {
+        match self { Self::Low=>"cfg_speed_low", Self::Medium=>"cfg_speed_medium", Self::High=>"cfg_speed_high", Self::Max=>"cfg_speed_max" }
     }
+    fn label(&self, i18n: &HashMap<String,String>) -> String {
+        i18n.get(self.label_key()).cloned().unwrap_or_else(|| "?".into())
+    }
+}
+
+fn hash_str(s: &str) -> u64 {
+    use std::collections::hash_map::DefaultHasher;
+    let mut h = DefaultHasher::new();
+    s.hash(&mut h);
+    h.finish()
 }
 
 // ─── Structs ──────────────────────────────────────────────────────────────────
@@ -152,15 +224,17 @@ fn config_dir() -> String {
     format!("{}/.config/isoflash", std::env::var("HOME").unwrap_or_else(|_| ".".into()))
 }
 
-fn logo_uri(file: &str) -> String {
-    // Buscar relativo al binario o al directorio actual (cargo run)
+fn logo_uri(file: &str) -> Option<String> {
+    // Buscar relativo al binario
     if let Ok(exe) = std::env::current_exe() {
         if let Some(dir) = exe.parent() {
             let p = dir.join("icons").join(file);
-            if p.exists() { return format!("file://{}", p.display()); }
+            if p.exists() { return Some(format!("file://{}", p.display())); }
         }
     }
-    format!("file://icons/{}", file)
+    // Fallback: relativo a CWD
+    let p = std::path::Path::new("icons").join(file);
+    if p.exists() { Some(format!("file://{}", p.display())) } else { None }
 }
 
 // Sugerencias de rutas para autocompletado
@@ -189,11 +263,12 @@ fn path_suggestions(partial: &str) -> Vec<String> {
 }
 
 // Validar ruta de descarga
-fn validate_download_dir(path: &str) -> Result<(), &'static str> {
-    if path.is_empty() { return Err("Ruta vacia — ingresa un directorio"); }
+fn validate_download_dir(path: &str, i18n: &HashMap<String,String>) -> Result<(), String> {
+    let t = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
+    if path.is_empty() { return Err(t("cfg_path_empty")); }
     let p = std::path::Path::new(path);
-    if !p.exists() { return Err("Directorio no existe — pulsa Crear para generarlo"); }
-    if !p.is_dir() { return Err("La ruta no es un directorio"); }
+    if !p.exists() { return Err(t("cfg_path_not_exist")); }
+    if !p.is_dir() { return Err(t("cfg_path_not_dir")); }
     Ok(())
 }
 
@@ -231,29 +306,37 @@ fn load_catalog(json: &str) -> Vec<Distro> {
     }).collect()
 }
 
-fn cat_badge(cat: &CatFilter, t: &Tema) -> (Color32, Color32, &'static str) {
-    match t {
+fn cat_badge(cat: &CatFilter, t: &Tema, i18n: &HashMap<String,String>) -> (Color32, Color32, String) {
+    let k = match cat {
+        CatFilter::All => "cat_badge_all", CatFilter::Rolling => "cat_badge_rolling",
+        CatFilter::Lts => "cat_badge_lts", CatFilter::NoSystemd => "cat_badge_nosystemd",
+        CatFilter::Server => "cat_badge_server", CatFilter::Security => "cat_badge_security",
+        CatFilter::Gaming => "cat_badge_gaming", CatFilter::Windows => "cat_badge_windows",
+    };
+    let txt = i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
+    let (bg, fg) = match t {
         Tema::Oscuro => match cat {
-            CatFilter::All       => (Color32::from_rgb(40,40,60),   Color32::from_rgb(180,180,200), "Todas"),
-            CatFilter::Rolling   => (Color32::from_rgb(60,30,90),   Color32::from_rgb(180,120,230), "Rolling"),
-            CatFilter::Lts       => (Color32::from_rgb(20,60,40),   Color32::from_rgb(80,200,120),  "LTS"),
-            CatFilter::NoSystemd => (Color32::from_rgb(80,40,0),    Color32::from_rgb(220,150,60),  "Sin systemd"),
-            CatFilter::Server    => (Color32::from_rgb(20,50,80),   Color32::from_rgb(80,160,220),  "Servidor"),
-            CatFilter::Security  => (Color32::from_rgb(80,30,30),   Color32::from_rgb(220,100,100), "Seguridad"),
-            CatFilter::Gaming    => (Color32::from_rgb(80,50,20),   Color32::from_rgb(220,160,60),  "Gaming"),
-            CatFilter::Windows   => (Color32::from_rgb(0,50,100),   Color32::from_rgb(80,160,240),  "Windows"),
+            CatFilter::All       => (Color32::from_rgb(40,40,60),   Color32::from_rgb(180,180,200)),
+            CatFilter::Rolling   => (Color32::from_rgb(60,30,90),   Color32::from_rgb(180,120,230)),
+            CatFilter::Lts       => (Color32::from_rgb(20,60,40),   Color32::from_rgb(80,200,120)),
+            CatFilter::NoSystemd => (Color32::from_rgb(80,40,0),    Color32::from_rgb(220,150,60)),
+            CatFilter::Server    => (Color32::from_rgb(20,50,80),   Color32::from_rgb(80,160,220)),
+            CatFilter::Security  => (Color32::from_rgb(80,30,30),   Color32::from_rgb(220,100,100)),
+            CatFilter::Gaming    => (Color32::from_rgb(80,50,20),   Color32::from_rgb(220,160,60)),
+            CatFilter::Windows   => (Color32::from_rgb(0,50,100),   Color32::from_rgb(80,160,240)),
         },
         Tema::Claro => match cat {
-            CatFilter::All       => (Color32::from_rgb(220,220,235), Color32::from_rgb(70,70,110),   "Todas"),
-            CatFilter::Rolling   => (Color32::from_rgb(230,215,245), Color32::from_rgb(110,50,170),  "Rolling"),
-            CatFilter::Lts       => (Color32::from_rgb(210,240,220), Color32::from_rgb(30,130,70),   "LTS"),
-            CatFilter::NoSystemd => (Color32::from_rgb(255,240,210), Color32::from_rgb(150,80,0),    "Sin systemd"),
-            CatFilter::Server    => (Color32::from_rgb(210,230,245), Color32::from_rgb(30,100,170),  "Servidor"),
-            CatFilter::Security  => (Color32::from_rgb(250,220,220), Color32::from_rgb(180,40,40),   "Seguridad"),
-            CatFilter::Gaming    => (Color32::from_rgb(250,235,205), Color32::from_rgb(160,100,10),  "Gaming"),
-            CatFilter::Windows   => (Color32::from_rgb(210,230,255), Color32::from_rgb(20,80,190),   "Windows"),
+            CatFilter::All       => (Color32::from_rgb(220,220,235), Color32::from_rgb(70,70,110)),
+            CatFilter::Rolling   => (Color32::from_rgb(230,215,245), Color32::from_rgb(110,50,170)),
+            CatFilter::Lts       => (Color32::from_rgb(210,240,220), Color32::from_rgb(30,130,70)),
+            CatFilter::NoSystemd => (Color32::from_rgb(255,240,210), Color32::from_rgb(150,80,0)),
+            CatFilter::Server    => (Color32::from_rgb(210,230,245), Color32::from_rgb(30,100,170)),
+            CatFilter::Security  => (Color32::from_rgb(250,220,220), Color32::from_rgb(180,40,40)),
+            CatFilter::Gaming    => (Color32::from_rgb(250,235,205), Color32::from_rgb(160,100,10)),
+            CatFilter::Windows   => (Color32::from_rgb(210,230,255), Color32::from_rgb(20,80,190)),
         },
-    }
+    };
+    (bg, fg, txt)
 }
 
 // ─── USB Scan ─────────────────────────────────────────────────────────────────
@@ -571,7 +654,8 @@ fn sidebar_btn(ui: &mut egui::Ui, ctx: &egui::Context, panel: &mut Panel, tema: 
 
 // ─── Draw Dashboard ───────────────────────────────────────────────────────────
 
-fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], _scanning: bool, op_active: bool, op_cancel: bool, tema: &Tema, action: &mut Option<DashAction>) {
+fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], _scanning: bool, op_active: bool, op_cancel: bool, tema: &Tema, i18n: &HashMap<String,String>, action: &mut Option<DashAction>) {
+    let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
     // Estado vacío — siempre muestra el mismo mensaje, el scan es completamente silencioso
     if usbs.is_empty() {
         let ic = match tema { Tema::Oscuro=>Color32::from_rgb(60,65,90),    Tema::Claro=>Color32::from_rgb(150,160,195) };
@@ -581,9 +665,9 @@ fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], _scanning: bool, op_act
             ui.add_space(60.0);
             ui.label(egui::RichText::new("💾").size(48.0).color(ic));
             ui.add_space(12.0);
-            ui.label(egui::RichText::new("No se detectaron dispositivos USB").size(15.0).color(tc));
+            ui.label(egui::RichText::new(tr("dash_no_usb")).size(15.0).color(tc));
             ui.add_space(6.0);
-            ui.label(egui::RichText::new("Se detectan automaticamente al conectar").size(12.0).color(t2));
+            ui.label(egui::RichText::new(tr("dash_auto_detect")).size(12.0).color(t2));
         });
         return;
     }
@@ -611,11 +695,11 @@ fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], _scanning: bool, op_act
                                 .show(ui, |ui| { ui.label(egui::RichText::new(format_size(usb.size_bytes)).size(12.0).color(badge_fg)); });
                             ui.add_space(8.0);
                             let (vbg,vtxt,vfg) = if usb.has_ventoy {
-                                (Color32::from_rgb(20,80,40), "✓ Ventoy", Color32::from_rgb(80,220,120))
+                                (Color32::from_rgb(20,80,40), "✓ Ventoy".to_string(), Color32::from_rgb(80,220,120))
                             } else {
                                 match tema {
-                                    Tema::Oscuro => (Color32::from_rgb(50,50,70), "Sin Ventoy", Color32::from_rgb(130,140,160)),
-                                    Tema::Claro  => (Color32::from_rgb(220,220,235), "Sin Ventoy", Color32::from_rgb(100,105,140)),
+                                    Tema::Oscuro => (Color32::from_rgb(50,50,70), tr("dash_without_ventoy"), Color32::from_rgb(130,140,160)),
+                                    Tema::Claro  => (Color32::from_rgb(220,220,235), tr("dash_without_ventoy"), Color32::from_rgb(100,105,140)),
                                 }
                             };
                             Frame::none().fill(vbg).rounding(Rounding::same(6.0))
@@ -627,23 +711,23 @@ fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], _scanning: bool, op_act
                     ui.horizontal(|ui| {
                         if op_active {
                             ui.spinner(); ui.add_space(6.0);
-                            ui.label(egui::RichText::new("Instalando Ventoy...").size(13.0).color(Color32::from_rgb(80,140,255)));
+                            ui.label(egui::RichText::new(tr("dash_installing_ventoy")).size(13.0).color(Color32::from_rgb(80,140,255)));
                             ui.add_space(8.0);
                             if op_cancel {
-                                if ui.add(egui::Button::new(egui::RichText::new("✕  Cancelar").size(12.0).color(Color32::from_rgb(220,80,80)))
+                                if ui.add(egui::Button::new(egui::RichText::new(format!("✕  {}", tr("dash_cancel"))).size(12.0).color(Color32::from_rgb(220,80,80)))
                                     .fill(Color32::from_rgb(60,20,20)).rounding(Rounding::same(7.0)).min_size(Vec2::new(100.0,30.0))).clicked() {
                                     local = Some(DashAction::CancelVentoy);
                                 }
                             }
                         } else {
-                            let (vtxt, is_upd) = if usb.has_ventoy { ("⬆  Actualizar Ventoy",true) } else { ("⚡  Instalar Ventoy",false) };
+                            let (vtxt, is_upd) = if usb.has_ventoy { (format!("⬆  {}", tr("dash_update_ventoy")), true) } else { (format!("⚡  {}", tr("dash_install_ventoy")), false) };
                             if ui.add(egui::Button::new(egui::RichText::new(vtxt).size(13.0).color(Color32::WHITE))
                                 .fill(Color32::from_rgb(40,80,180)).rounding(Rounding::same(7.0)).min_size(Vec2::new(165.0,32.0))).clicked() {
                                 local = Some(DashAction::InstallVentoy(usb.path.clone(), is_upd));
                             }
                         }
                         ui.add_space(8.0);
-                        if ui.add(egui::Button::new(egui::RichText::new("🔥  Flashear ISO").size(13.0).color(Color32::WHITE))
+                        if ui.add(egui::Button::new(egui::RichText::new(format!("🔥  {}", tr("dash_flash_iso"))).size(13.0).color(Color32::WHITE))
                             .fill(Color32::from_rgb(160,60,20)).rounding(Rounding::same(7.0)).min_size(Vec2::new(130.0,32.0))).clicked() {
                             local = Some(DashAction::GoFlash(usb.path.clone()));
                         }
@@ -658,36 +742,43 @@ fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], _scanning: bool, op_act
 
 fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filter: &mut CatFilter,
     win_popup: &mut bool, win_name: &mut String, downloads: &mut Vec<DownloadEntry>,
-    config: &AppConfig, tema: &Tema, go_downloads: &mut bool,
+    config: &AppConfig, tema: &Tema, i18n: &HashMap<String,String>, catalog_updating: bool, go_downloads: &mut bool,
 ) {
+    let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
     ui.horizontal(|ui| {
         let sw = (ui.available_width()-130.0).max(320.0);
-        ui.add(egui::TextEdit::singleline(search).hint_text("🔍  Buscar distro...").desired_width(sw)
+        ui.add(egui::TextEdit::singleline(search).hint_text(format!("🔍  {}", tr("cat_search_hint"))).desired_width(sw)
             .min_size(Vec2::new(0.0,36.0)).font(egui::FontId::proportional(15.0)));
         if !search.is_empty() {
             if ui.add(egui::Button::new(egui::RichText::new("✕").size(14.0)).min_size(Vec2::new(32.0,36.0))).clicked() { search.clear(); }
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             let cc = match tema { Tema::Oscuro=>Color32::from_rgb(100,110,130), Tema::Claro=>Color32::from_rgb(70,80,115) };
-            ui.label(egui::RichText::new(format!("{} distros",catalog.len())).size(12.0).color(cc));
+            let lbl = tr("cat_distros_count").replace("{0}", &catalog.len().to_string());
+            ui.label(egui::RichText::new(lbl).size(12.0).color(cc));
         });
     });
-    ui.add_space(12.0);
+    ui.add_space(6.0);
+    // Indicador sutil de actualizacion (altura fija para no mover la UI)
+    let ic = match tema { Tema::Oscuro=>Color32::from_rgb(80,90,110), Tema::Claro=>Color32::from_rgb(140,145,170) };
+    let hint = if catalog_updating { tr("catalog_updating") } else { String::new() };
+    ui.add_sized(Vec2::new(ui.available_width(), 18.0), egui::Label::new(egui::RichText::new(hint).size(11.0).color(ic).italics()));
     ui.horizontal_wrapped(|ui| {
-        for (f,lbl) in &[
-            (CatFilter::All,"🌐 Todas"),
-            (CatFilter::Rolling,"🔄 Rolling"),
-            (CatFilter::Lts,"🛡 LTS"),
-            (CatFilter::NoSystemd,"🔓 Sin systemd"),
-            (CatFilter::Server,"🖥 Servidor"),
-            (CatFilter::Security,"🔐 Seguridad"),
-            (CatFilter::Gaming,"🎮 Gaming"),
-            (CatFilter::Windows,"🪟 Windows"),
+        for (f, key) in &[
+            (CatFilter::All,"cat_filter_all"),
+            (CatFilter::Rolling,"cat_filter_rolling"),
+            (CatFilter::Lts,"cat_filter_lts"),
+            (CatFilter::NoSystemd,"cat_filter_nosystemd"),
+            (CatFilter::Server,"cat_filter_server"),
+            (CatFilter::Security,"cat_filter_security"),
+            (CatFilter::Gaming,"cat_filter_gaming"),
+            (CatFilter::Windows,"cat_filter_windows"),
         ] {
             let sel = *filter==*f;
             let bg = if sel { Color32::from_rgb(40,80,180) } else { match tema { Tema::Oscuro=>Color32::from_rgb(25,25,38), Tema::Claro=>Color32::from_rgb(220,222,235) } };
             let fg = if sel { Color32::WHITE } else { match tema { Tema::Oscuro=>Color32::from_rgb(160,170,190), Tema::Claro=>Color32::from_rgb(60,65,90) } };
-            if ui.add(egui::Button::new(egui::RichText::new(*lbl).size(12.0).color(fg)).fill(bg).rounding(Rounding::same(6.0)).min_size(Vec2::new(0.0,26.0))).clicked() { *filter=f.clone(); }
+            let lbl = tr(*key);
+            if ui.add(egui::Button::new(egui::RichText::new(lbl).size(12.0).color(fg)).fill(bg).rounding(Rounding::same(6.0)).min_size(Vec2::new(0.0,26.0))).clicked() { *filter=f.clone(); }
             ui.add_space(4.0);
         }
     });
@@ -699,7 +790,7 @@ fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filt
     ).collect();
     if filtered.is_empty() {
         let c = match tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(90,100,130) };
-        ui.vertical_centered(|ui| { ui.add_space(40.0); ui.label(egui::RichText::new("Sin resultados").size(14.0).color(c)); });
+        ui.vertical_centered(|ui| { ui.add_space(40.0); ui.label(egui::RichText::new(tr("cat_no_results")).size(14.0).color(c)); });
         return;
     }
     let card_bg  = match tema { Tema::Oscuro=>Color32::from_rgb(22,22,32), Tema::Claro=>Color32::WHITE };
@@ -721,8 +812,11 @@ fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filt
                             ui.horizontal(|ui| {
                                 // Logo con fallback a emoji
                                 if !distro.logo.is_empty() {
-                                    let uri = logo_uri(&distro.logo);
-                                    ui.add(egui::Image::new(uri.as_str()).max_size(Vec2::new(32.0,32.0)).rounding(Rounding::same(4.0)));
+                                    if let Some(uri) = logo_uri(&distro.logo) {
+                                        ui.add(egui::Image::new(uri.as_str()).max_size(Vec2::new(32.0,32.0)).rounding(Rounding::same(4.0)));
+                                    } else {
+                                        ui.label(egui::RichText::new("💿").size(26.0));
+                                    }
                                 } else {
                                     ui.label(egui::RichText::new("💿").size(26.0));
                                 }
@@ -734,14 +828,14 @@ fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filt
                                         if distro.arch == "i386" {
                                             Frame::none().fill(Color32::from_rgb(80,40,0)).rounding(Rounding::same(4.0))
                                                 .inner_margin(egui::Margin{left:4.0,right:4.0,top:1.0,bottom:1.0}).show(ui, |ui| {
-                                                    ui.label(egui::RichText::new("32bit").size(9.0).color(Color32::from_rgb(220,150,60)));
+                                                    ui.label(egui::RichText::new(tr("cat_32bit")).size(9.0).color(Color32::from_rgb(220,150,60)));
                                                 });
                                         }
                                     });
-                                    let (cbg,cfg,ctxt) = cat_badge(&distro.category, tema);
+                                    let (cbg,cfg,ctxt) = cat_badge(&distro.category, tema, i18n);
                                     Frame::none().fill(cbg).rounding(Rounding::same(4.0))
                                         .inner_margin(egui::Margin{left:6.0,right:6.0,top:2.0,bottom:2.0}).show(ui, |ui| {
-                                            ui.label(egui::RichText::new(ctxt).size(10.0).color(cfg));
+                                            ui.label(egui::RichText::new(&ctxt).size(10.0).color(cfg));
                                         });
                                 });
                             });
@@ -757,17 +851,17 @@ fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filt
                                 ui.add_space(6.0);
                                 Frame::none().fill(Color32::from_rgb(60,40,10)).rounding(Rounding::same(6.0))
                                     .inner_margin(egui::Margin{left:8.0,right:8.0,top:5.0,bottom:5.0}).show(ui, |ui| {
-                                        ui.label(egui::RichText::new("⚠  Descarga especial requerida").size(11.0).color(Color32::from_rgb(230,170,60)));
+                                        ui.label(egui::RichText::new(format!("⚠  {}", tr("cat_special_download_warning"))).size(11.0).color(Color32::from_rgb(230,170,60)));
                                     });
                             }
                             ui.add_space(10.0); ui.separator(); ui.add_space(8.0);
                             let in_queue = downloads.iter().any(|d|d.url==distro.url);
                             let (btn_col,btn_txt) = if distro.is_windows {
-                                (Color32::from_rgb(0,90,190),"🪟  Ver instrucciones")
+                                (Color32::from_rgb(0,90,190), format!("🪟  {}", tr("cat_view_instructions")))
                             } else if in_queue {
-                                (Color32::from_rgb(30,80,40),"✓  En cola de descarga")
+                                (Color32::from_rgb(30,80,40), format!("✓  {}", tr("cat_in_queue")))
                             } else {
-                                (Color32::from_rgb(40,80,180),"⬇  Agregar a descargas")
+                                (Color32::from_rgb(40,80,180), format!("⬇  {}", tr("cat_add_to_downloads")))
                             };
                             if ui.add(egui::Button::new(egui::RichText::new(btn_txt).size(12.0).color(Color32::WHITE)).fill(btn_col).rounding(Rounding::same(7.0)).min_size(Vec2::new(ui.available_width(),30.0))).clicked() {
                                 clicked = true;
@@ -797,7 +891,8 @@ fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filt
 
 // ─── Draw Descargas ───────────────────────────────────────────────────────────
 
-fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config: &AppConfig, tema: &Tema) -> Option<DlAction> {
+fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config: &AppConfig, tema: &Tema, i18n: &HashMap<String,String>) -> Option<DlAction> {
+    let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
     let card_bg  = match tema { Tema::Oscuro=>Color32::from_rgb(22,22,32),    Tema::Claro=>Color32::WHITE };
     let brd      = match tema { Tema::Oscuro=>Color32::from_rgb(40,44,60),    Tema::Claro=>Color32::from_rgb(210,215,230) };
     let name_col = match tema { Tema::Oscuro=>Color32::WHITE,                 Tema::Claro=>Color32::from_rgb(20,25,50) };
@@ -810,9 +905,9 @@ fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config:
             ui.add_space(60.0);
             let ic = match tema { Tema::Oscuro=>Color32::from_rgb(60,65,90), Tema::Claro=>Color32::from_rgb(150,160,195) };
             ui.label(egui::RichText::new("⬇").size(48.0).color(ic)); ui.add_space(12.0);
-            ui.label(egui::RichText::new("No hay descargas en cola").size(15.0).color(tc)); ui.add_space(6.0);
+            ui.label(egui::RichText::new(tr("dl_no_downloads")).size(15.0).color(tc)); ui.add_space(6.0);
             let t2 = match tema { Tema::Oscuro=>Color32::from_rgb(90,95,115), Tema::Claro=>Color32::from_rgb(110,120,150) };
-            ui.label(egui::RichText::new("Ve al Catalogo y pulsa «Agregar a descargas»").size(12.0).color(t2));
+            ui.label(egui::RichText::new(tr("dl_go_to_catalog")).size(12.0).color(t2));
         });
         return None;
     }
@@ -821,28 +916,32 @@ fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config:
     Frame::none().fill(bar_bg_c).rounding(Rounding::same(8.0)).inner_margin(10.0).show(ui, |ui| {
         ui.set_min_width(ui.available_width());
         ui.horizontal(|ui| {
-            let dir_valid = validate_download_dir(&config.download_dir).is_ok();
+            let dir_valid = validate_download_dir(&config.download_dir, i18n).is_ok();
             let dir_col   = if dir_valid { url_col } else { Color32::from_rgb(220,80,80) };
             ui.label(egui::RichText::new("📁").size(13.0));
             ui.label(egui::RichText::new(&config.download_dir).size(12.0).color(dir_col).monospace());
             if !dir_valid {
                 ui.add_space(6.0);
-                ui.label(egui::RichText::new("⚠ ruta invalida — ve a Configuracion").size(11.0).color(Color32::from_rgb(220,80,80)));
+                ui.label(egui::RichText::new(format!("⚠ {}", tr("dl_invalid_path"))).size(11.0).color(Color32::from_rgb(220,80,80)));
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.label(egui::RichText::new(format!("⚡ {}",config.speed_limit.label())).size(12.0).color(tc));
+                ui.label(egui::RichText::new(format!("⚡ {}", config.speed_limit.label(i18n))).size(12.0).color(tc));
             });
         });
     });
     ui.add_space(8.0);
 
-    let dl_dir_ok = validate_download_dir(&config.download_dir).is_ok();
+    let dl_dir_ok = validate_download_dir(&config.download_dir, i18n).is_ok();
+
+    let clear_btn_fill = match tema { Tema::Oscuro=>Color32::from_rgb(30,30,45), Tema::Claro=>Color32::from_rgb(225,227,240) };
+    let clear_btn_fg  = match tema { Tema::Oscuro=>Color32::from_rgb(160,170,190), Tema::Claro=>Color32::from_rgb(70,75,100) };
 
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(format!("{} elemento(s)",downloads.len())).size(13.0).color(tc));
+        let lbl = tr("dl_items_count").replace("{0}", &downloads.len().to_string());
+        ui.label(egui::RichText::new(lbl).size(13.0).color(tc));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.add(egui::Button::new(egui::RichText::new("🗑  Limpiar completadas").size(12.0))
-                .fill(Color32::TRANSPARENT).rounding(Rounding::same(6.0))).clicked() {
+            if ui.add(egui::Button::new(egui::RichText::new(format!("🗑  {}", tr("dl_clear_completed"))).size(12.0).color(clear_btn_fg))
+                .fill(clear_btn_fill).rounding(Rounding::same(6.0))).clicked() {
                 return; // manejado abajo
             }
         });
@@ -876,10 +975,10 @@ fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config:
                             }
                             if dl.status==DownloadStatus::Paused && dl.progress>0.0 {
                                 let pct = (dl.progress*100.0) as u32;
-                                ui.label(egui::RichText::new(format!("{}%  —  pausado, listo para reanudar",pct)).size(11.0).color(Color32::from_rgb(200,160,60)));
+                                ui.label(egui::RichText::new(format!("{}%  —  {}",pct, tr("dl_paused_resume"))).size(11.0).color(Color32::from_rgb(200,160,60)));
                             }
                             if let DownloadStatus::Error(e) = &dl.status {
-                                ui.label(egui::RichText::new(format!("Error: {}",e)).size(11.0).color(Color32::from_rgb(220,80,80)));
+                                ui.label(egui::RichText::new(format!("{}: {}", tr("dl_error"), e)).size(11.0).color(Color32::from_rgb(220,80,80)));
                             }
                         });
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -889,20 +988,20 @@ fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config:
                             ui.add_space(4.0);
                             match &dl.status {
                                 DownloadStatus::Done => {
-                                    if ui.add(egui::Button::new(egui::RichText::new("📁 Abrir").size(12.0).color(Color32::WHITE)).fill(Color32::from_rgb(30,80,40)).rounding(Rounding::same(6.0)).min_size(Vec2::new(80.0,28.0))).clicked() {
+                                    if ui.add(egui::Button::new(egui::RichText::new(format!("📁 {}", tr("dl_open"))).size(12.0).color(Color32::WHITE)).fill(Color32::from_rgb(30,80,40)).rounding(Rounding::same(6.0)).min_size(Vec2::new(80.0,28.0))).clicked() {
                                         action = Some(DlAction::OpenDir(i));
                                     }
                                 }
                                 DownloadStatus::Queued | DownloadStatus::Paused | DownloadStatus::Error(_) => {
                                     if dl_dir_ok {
-                                        let lbl = if dl.status==DownloadStatus::Paused { "▶  Reanudar" } else { "▶  Iniciar" };
+                                        let lbl = if dl.status==DownloadStatus::Paused { format!("▶  {}", tr("dl_resume")) } else { format!("▶  {}", tr("dl_start")) };
                                         if ui.add(egui::Button::new(egui::RichText::new(lbl).size(12.0).color(Color32::WHITE)).fill(Color32::from_rgb(40,80,180)).rounding(Rounding::same(6.0)).min_size(Vec2::new(100.0,28.0))).clicked() {
                                             action = Some(DlAction::Start(i));
                                         }
                                     }
                                 }
                                 DownloadStatus::Downloading => {
-                                    if ui.add(egui::Button::new(egui::RichText::new("⏸  Pausar").size(12.0).color(Color32::WHITE)).fill(Color32::from_rgb(100,70,20)).rounding(Rounding::same(6.0)).min_size(Vec2::new(90.0,28.0))).clicked() {
+                                    if ui.add(egui::Button::new(egui::RichText::new(format!("⏸  {}", tr("dl_pause"))).size(12.0).color(Color32::WHITE)).fill(Color32::from_rgb(100,70,20)).rounding(Rounding::same(6.0)).min_size(Vec2::new(90.0,28.0))).clicked() {
                                         action = Some(DlAction::Pause(i));
                                     }
                                 }
@@ -926,7 +1025,8 @@ fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config:
         }
     });
 
-    if ui.add(egui::Button::new(egui::RichText::new("🗑  Limpiar completadas").size(12.0)).fill(Color32::TRANSPARENT).rounding(Rounding::same(6.0))).clicked() {
+    if ui.add(egui::Button::new(egui::RichText::new(format!("🗑  {}", tr("dl_clear_completed"))).size(12.0).color(clear_btn_fg))
+        .fill(clear_btn_fill).rounding(Rounding::same(6.0))).clicked() {
         clear_done = true;
     }
     if clear_done { action = Some(DlAction::ClearDone); }
@@ -935,7 +1035,8 @@ fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config:
 
 // ─── Draw ISOs Locales ────────────────────────────────────────────────────────
 
-fn draw_locales(ui: &mut egui::Ui, iso_files: &[IsoFile], scan_dir: &str, tema: &Tema) -> bool {
+fn draw_locales(ui: &mut egui::Ui, iso_files: &[IsoFile], scan_dir: &str, tema: &Tema, i18n: &HashMap<String,String>) -> bool {
+    let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
     let card_bg  = match tema { Tema::Oscuro=>Color32::from_rgb(22,22,32),    Tema::Claro=>Color32::WHITE };
     let brd      = match tema { Tema::Oscuro=>Color32::from_rgb(40,44,60),    Tema::Claro=>Color32::from_rgb(210,215,230) };
     let name_col = match tema { Tema::Oscuro=>Color32::WHITE,                 Tema::Claro=>Color32::from_rgb(20,25,50) };
@@ -945,7 +1046,7 @@ fn draw_locales(ui: &mut egui::Ui, iso_files: &[IsoFile], scan_dir: &str, tema: 
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new(format!("📁  {}",scan_dir)).size(13.0).color(path_col).monospace());
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.add(egui::Button::new(egui::RichText::new("🔄  Escanear").size(12.0).color(Color32::WHITE)).fill(Color32::from_rgb(40,80,180)).rounding(Rounding::same(7.0)).min_size(Vec2::new(100.0,28.0))).clicked() { rescan=true; }
+            if ui.add(egui::Button::new(egui::RichText::new(format!("🔄  {}", tr("local_update"))).size(12.0).color(Color32::WHITE)).fill(Color32::from_rgb(40,80,180)).rounding(Rounding::same(7.0)).min_size(Vec2::new(100.0,28.0))).clicked() { rescan=true; }
         });
     });
     ui.add_space(10.0);
@@ -954,12 +1055,13 @@ fn draw_locales(ui: &mut egui::Ui, iso_files: &[IsoFile], scan_dir: &str, tema: 
             ui.add_space(50.0);
             let ic = match tema { Tema::Oscuro=>Color32::from_rgb(60,65,90), Tema::Claro=>Color32::from_rgb(150,160,195) };
             ui.label(egui::RichText::new("💿").size(44.0).color(ic)); ui.add_space(12.0);
-            ui.label(egui::RichText::new("No se encontraron archivos ISO/IMG").size(15.0).color(tc)); ui.add_space(6.0);
+            ui.label(egui::RichText::new(tr("local_no_files")).size(15.0).color(tc)); ui.add_space(6.0);
             let t2 = match tema { Tema::Oscuro=>Color32::from_rgb(90,95,115), Tema::Claro=>Color32::from_rgb(110,120,150) };
-            ui.label(egui::RichText::new("Descarga desde el Catalogo o ajusta el directorio en Configuracion").size(12.0).color(t2));
+            ui.label(egui::RichText::new(tr("local_go_to_catalog_or_config")).size(12.0).color(t2));
         });
     } else {
-        ui.label(egui::RichText::new(format!("{} archivo(s)",iso_files.len())).size(13.0).color(tc));
+        let lbl = tr("local_files_count").replace("{0}", &iso_files.len().to_string());
+        ui.label(egui::RichText::new(lbl).size(13.0).color(tc));
         ui.add_space(8.0);
         egui::ScrollArea::vertical().max_height(ui.available_height()).show(ui, |ui| {
             for iso in iso_files {
@@ -991,7 +1093,8 @@ fn draw_locales(ui: &mut egui::Ui, iso_files: &[IsoFile], scan_dir: &str, tema: 
 
 // ─── Draw Configuracion ───────────────────────────────────────────────────────
 
-fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[String], show_sug: &mut bool, tema: &Tema) {
+fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[String], show_sug: &mut bool, tema: &Tema, i18n: &HashMap<String,String>, lang: &mut Language, on_lang_change: &mut bool) {
+    let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
     let sec_col  = match tema { Tema::Oscuro=>Color32::from_rgb(80,140,255),  Tema::Claro=>Color32::from_rgb(40,80,200) };
     let tc       = match tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(80,90,120) };
     let card_bg  = match tema { Tema::Oscuro=>Color32::from_rgb(22,22,32),    Tema::Claro=>Color32::WHITE };
@@ -1003,9 +1106,9 @@ fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[
         Frame::none().fill(card_bg).rounding(Rounding::same(10.0)).stroke(Stroke::new(1.0,brd)).inner_margin(16.0)
             .outer_margin(egui::Margin{left:0.0,right:0.0,top:0.0,bottom:14.0}).show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
-                ui.label(egui::RichText::new("📁  Directorio de descargas").size(14.0).strong().color(sec_col));
+                ui.label(egui::RichText::new(format!("📁  {}", tr("cfg_download_dir"))).size(14.0).strong().color(sec_col));
                 ui.add_space(8.0);
-                let dir_valid = validate_download_dir(&config.download_dir);
+                let dir_valid = validate_download_dir(&config.download_dir, i18n);
                 let border_col = if dir_valid.is_ok() { brd } else { Color32::from_rgb(200,60,60) };
                 // Campo de texto
                 let resp = ui.add(egui::TextEdit::singleline(&mut config.download_dir)
@@ -1019,10 +1122,10 @@ fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[
                 ui.horizontal(|ui| {
                     if let Err(e) = dir_valid {
                         ui.add_space(4.0);
-                        ui.label(egui::RichText::new(e).size(11.0).color(Color32::from_rgb(220,80,80)));
-                        if e.contains("no existe") {
+                        ui.label(egui::RichText::new(&e).size(11.0).color(Color32::from_rgb(220,80,80)));
+                        if e.contains("no existe") || e.contains("not exist") || e.contains("不存在") {
                             ui.add_space(8.0);
-                            if ui.add(egui::Button::new(egui::RichText::new("✚ Crear").size(12.0).color(Color32::WHITE))
+                            if ui.add(egui::Button::new(egui::RichText::new(format!("✚ {}", tr("cfg_create"))).size(12.0).color(Color32::WHITE))
                                 .fill(Color32::from_rgb(40,80,180)).rounding(Rounding::same(6.0))).clicked() {
                                 let _ = std::fs::create_dir_all(&config.download_dir);
                             }
@@ -1043,7 +1146,7 @@ fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[
                                     *show_sug = false;
                                 }
                             }
-                            if ui.add(egui::Button::new(egui::RichText::new("✕  Cerrar sugerencias").size(11.0).color(tc))
+                            if ui.add(egui::Button::new(egui::RichText::new(format!("✕  {}", tr("cfg_close_suggestions"))).size(11.0).color(tc))
                                 .fill(Color32::TRANSPARENT)).clicked() { *show_sug = false; }
                         });
                 }
@@ -1053,17 +1156,40 @@ fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[
         Frame::none().fill(card_bg).rounding(Rounding::same(10.0)).stroke(Stroke::new(1.0,brd)).inner_margin(16.0)
             .outer_margin(egui::Margin{left:0.0,right:0.0,top:0.0,bottom:14.0}).show(ui, |ui| {
                 ui.set_min_width(ui.available_width());
-                ui.label(egui::RichText::new("⚡  Velocidad de descarga").size(14.0).strong().color(sec_col));
+                ui.label(egui::RichText::new(format!("⚡  {}", tr("cfg_speed"))).size(14.0).strong().color(sec_col));
                 ui.add_space(8.0);
-                ui.label(egui::RichText::new("Limita la velocidad para no saturar la red mientras trabajas.").size(12.0).color(tc));
+                ui.label(egui::RichText::new(tr("cfg_speed_desc")).size(12.0).color(tc));
                 ui.add_space(12.0);
                 for variant in [SpeedLimit::Low, SpeedLimit::Medium, SpeedLimit::High, SpeedLimit::Max] {
                     let sel = config.speed_limit == variant;
                     let bg  = if sel { Color32::from_rgb(40,80,180) } else { match tema { Tema::Oscuro=>Color32::from_rgb(30,30,45), Tema::Claro=>Color32::from_rgb(220,222,238) } };
                     let fg  = if sel { Color32::WHITE } else { match tema { Tema::Oscuro=>Color32::from_rgb(170,175,195), Tema::Claro=>Color32::from_rgb(60,65,90) } };
-                    if ui.add(egui::Button::new(egui::RichText::new(variant.label()).size(13.0).color(fg))
+                    if ui.add(egui::Button::new(egui::RichText::new(variant.label(i18n)).size(13.0).color(fg))
                         .fill(bg).rounding(Rounding::same(7.0)).min_size(Vec2::new(280.0,32.0))).clicked() {
                         config.speed_limit = variant;
+                    }
+                    ui.add_space(4.0);
+                }
+            });
+
+        // ── Idioma ──
+        Frame::none().fill(card_bg).rounding(Rounding::same(10.0)).stroke(Stroke::new(1.0,brd)).inner_margin(16.0)
+            .outer_margin(egui::Margin{left:0.0,right:0.0,top:0.0,bottom:14.0}).show(ui, |ui| {
+                ui.set_min_width(ui.available_width());
+                ui.label(egui::RichText::new(format!("🌐  {}", tr("cfg_language"))).size(14.0).strong().color(sec_col));
+                ui.add_space(10.0);
+                for (lbl_key, l) in [
+                    ("cfg_lang_english", Language::English),
+                    ("cfg_lang_spanish", Language::Spanish),
+                    ("cfg_lang_chinese", Language::Chinese),
+                ] {
+                    let sel = *lang == l;
+                    let bg  = if sel { Color32::from_rgb(40,80,180) } else { match tema { Tema::Oscuro=>Color32::from_rgb(30,30,45), Tema::Claro=>Color32::from_rgb(220,222,238) } };
+                    let fg  = if sel { Color32::WHITE } else { match tema { Tema::Oscuro=>Color32::from_rgb(170,175,195), Tema::Claro=>Color32::from_rgb(60,65,90) } };
+                    if ui.add(egui::Button::new(egui::RichText::new(tr(lbl_key)).size(13.0).color(fg))
+                        .fill(bg).rounding(Rounding::same(7.0)).min_size(Vec2::new(280.0,32.0))).clicked() {
+                        *lang = l;
+                        *on_lang_change = true;
                     }
                     ui.add_space(4.0);
                 }
@@ -1072,9 +1198,9 @@ fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[
         // ── Logos ──
         Frame::none().fill(card_bg).rounding(Rounding::same(10.0)).stroke(Stroke::new(1.0,brd)).inner_margin(16.0).show(ui, |ui| {
             ui.set_min_width(ui.available_width());
-            ui.label(egui::RichText::new("🖼  Logos de distribuciones").size(14.0).strong().color(sec_col));
+            ui.label(egui::RichText::new(format!("🖼  {}", tr("cfg_logos"))).size(14.0).strong().color(sec_col));
             ui.add_space(8.0);
-            ui.label(egui::RichText::new("Coloca archivos SVG/PNG de 64x64 px en el directorio icons/ del proyecto.").size(12.0).color(tc));
+            ui.label(egui::RichText::new(tr("cfg_logos_desc")).size(12.0).color(tc));
             ui.add_space(8.0);
             let logos = ["almalinux.svg","alpine.svg","antix.svg","arch.svg","bazzite.svg","cachyos.svg","debian.svg","deepin.svg","endeavouros.svg","fedora.svg","kali.svg","kde.svg","kubuntu.svg","lubuntu.svg","manjaro.svg","mint.svg","mxlinux.svg","nixos.svg","nobara.svg","opensuse.svg","parrot.svg","popos.svg","q4os.svg","rocky.svg","slackware.svg","tails.svg","ubuntu.svg","ubuntubudgie.svg","ubuntucinnamon.svg","ubuntustudio.svg","void.svg","windows.svg","xubuntu.svg","zorin.svg"];
             ui.horizontal_wrapped(|ui| {
@@ -1095,7 +1221,8 @@ fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[
 
 // ─── Draw Logs ────────────────────────────────────────────────────────────────
 
-fn draw_logs(ui: &mut egui::Ui, ctx: &egui::Context, op: &mut OpProgress, tema: &Tema) {
+fn draw_logs(ui: &mut egui::Ui, ctx: &egui::Context, op: &mut OpProgress, tema: &Tema, i18n: &HashMap<String,String>) {
+    let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
     let t = ctx.input(|i|i.time) as f32;
     if op.active {
         let dots = ".".repeat((t*2.0) as usize % 4);
@@ -1129,15 +1256,15 @@ fn draw_logs(ui: &mut egui::Ui, ctx: &egui::Context, op: &mut OpProgress, tema: 
                 .fill(Color32::from_rgb(60,20,20)).rounding(Rounding::same(7.0)).min_size(Vec2::new(120.0,30.0))).clicked() {
                 let tx = op.cancel_tx.take().unwrap();
                 let _ = tx.send(()); op.active = false;
-                op.log("Operacion cancelada por el usuario", LogLevel::Warn);
+                op.log(&tr("logs_cancelled_by_user"), LogLevel::Warn);
             }
         }
     } else if !op.logs.is_empty() {
         let ok  = op.logs.iter().any(|l|l.level==LogLevel::Ok);
         let err = op.logs.iter().any(|l|l.level==LogLevel::Error);
-        let (icon,txt,col) = if ok&&!err { ("✅","Operacion completada",Color32::from_rgb(80,200,120)) }
-            else if err { ("❌","Operacion con errores",Color32::from_rgb(220,80,80)) }
-            else { ("⚠","Operacion cancelada",Color32::from_rgb(220,180,60)) };
+        let (icon,txt,col) = if ok&&!err { ("✅", tr("logs_completed"), Color32::from_rgb(80,200,120)) }
+            else if err { ("❌", tr("logs_with_errors"), Color32::from_rgb(220,80,80)) }
+            else { ("⚠", tr("logs_cancelled"), Color32::from_rgb(220,180,60)) };
         ui.label(egui::RichText::new(format!("{icon}  {txt}")).size(15.0).strong().color(col));
         ui.add_space(12.0);
     } else {
@@ -1146,11 +1273,11 @@ fn draw_logs(ui: &mut egui::Ui, ctx: &egui::Context, op: &mut OpProgress, tema: 
         ui.vertical_centered(|ui| {
             ui.add_space(60.0);
             ui.label(egui::RichText::new("📋").size(40.0).color(ic)); ui.add_space(10.0);
-            ui.label(egui::RichText::new("Sin operaciones activas").size(14.0).color(tc));
+            ui.label(egui::RichText::new(tr("logs_idle")).size(14.0).color(tc));
         }); return;
     }
     if !op.logs.is_empty() {
-        let tog = if op.logs_expanded {"▼  Ocultar logs"} else {"▶  Ver logs detallados"};
+        let tog = if op.logs_expanded { format!("▼  {}", tr("logs_hide_details")) } else { format!("▶  {}", tr("logs_view_details")) };
         if ui.add(egui::Button::new(egui::RichText::new(tog).size(13.0).color(Color32::from_rgb(100,140,220))).fill(Color32::TRANSPARENT).rounding(Rounding::same(6.0))).clicked() {
             op.logs_expanded = !op.logs_expanded;
         }
@@ -1182,7 +1309,7 @@ fn draw_logs(ui: &mut egui::Ui, ctx: &egui::Context, op: &mut OpProgress, tema: 
         }
         ui.add_space(12.0);
         if !op.active {
-            if ui.add(egui::Button::new(egui::RichText::new("🗑  Limpiar logs").size(12.0).color(Color32::from_rgb(180,80,80))).fill(Color32::TRANSPARENT).rounding(Rounding::same(6.0))).clicked() {
+            if ui.add(egui::Button::new(egui::RichText::new(format!("🗑  {}", tr("logs_clear"))).size(12.0).color(Color32::from_rgb(180,80,80))).fill(Color32::TRANSPARENT).rounding(Rounding::same(6.0))).clicked() {
                 op.logs.clear(); op.logs_expanded = false;
             }
         }
@@ -1200,40 +1327,83 @@ struct IsoFlash {
     catalog: Vec<Distro>,
     catalog_rx: Option<Receiver<Option<String>>>,
     catalog_updating: bool,
+    last_catalog_update: f64,
+    catalog_hash: u64,
     has_network: bool, network_rx: Option<Receiver<bool>>, last_net_check: f64,
     cat_search: String, cat_filter: CatFilter, cat_win_popup: bool, cat_win_name: String,
     downloads: Vec<DownloadEntry>,
     iso_files: Vec<IsoFile>,
     config: AppConfig,
+    lang: Language,
+    i18n: HashMap<String, String>,
+    notif: Option<(String, f64)>,
     show_path_sug: bool, path_sug: Vec<String>,
+    #[allow(dead_code)]
+    first_init: bool,
 }
 
 impl Default for IsoFlash {
     fn default() -> Self {
         let catalog = load_catalog(CATALOG_JSON);
+        let catalog_hash = hash_str(CATALOG_JSON);
         let downloads = load_dl_state();
+        let (lang, download_dir, speed_limit, first_init) = {
+            if let Some((l, d, sp)) = load_app_config() {
+                let sl = match sp.as_str() { "Low"=>SpeedLimit::Low, "Medium"=>SpeedLimit::Medium, "High"=>SpeedLimit::High, _=>SpeedLimit::Max };
+                // Si hay config guardada, usar eso (primer arranque -> false)
+                (l, d, sl, false)
+            } else {
+                // Primer arranque: detectar idioma del sistema
+                let l = Language::default();
+                let d = default_download_dir();
+                (l, d, SpeedLimit::default(), true)
+            }
+        };
+        let download_dir = if download_dir.is_empty() { default_download_dir() } else { download_dir };
+        let i18n = load_i18n(lang);
         Self {
             panel: Panel::Dashboard, tema: Tema::Oscuro, tema_anim: 0.0,
             usbs: vec![], scanning: false, last_scan: -999.0, usb_rx: None,
             rescan_after: None,
             op: OpProgress::default(), op_rx: None,
-            catalog, catalog_rx: None, catalog_updating: false,
+            catalog, catalog_rx: None, catalog_updating: false, last_catalog_update: -9999.0, catalog_hash,
             has_network: false, network_rx: None, last_net_check: -999.0,
             cat_search: String::new(), cat_filter: CatFilter::All,
             cat_win_popup: false, cat_win_name: String::new(),
-            downloads, iso_files: vec![], config: AppConfig::default(),
-            show_path_sug: false, path_sug: vec![],
+            downloads, iso_files: vec![], config: AppConfig { download_dir, speed_limit },
+            lang, i18n,
+            notif: None, show_path_sug: false, path_sug: vec![],
+            first_init,
         }
     }
 }
 
 impl IsoFlash {
+    fn t(&self, key: &str) -> String {
+        self.i18n.get(key).cloned().unwrap_or_else(|| key.to_string())
+    }
+    fn tf(&self, key: &str, args: &[&str]) -> String {
+        let tmpl = self.t(key);
+        let mut result = tmpl;
+        for (i, arg) in args.iter().enumerate() {
+            result = result.replace(&format!("{{{}}}", i), arg);
+        }
+        result
+    }
+
+    fn set_language(&mut self, lang: Language) {
+        self.lang = lang;
+        self.i18n = load_i18n(lang);
+        save_app_config(lang, &self.config.download_dir, &self.config.speed_limit);
+    }
+
     fn start_install_ventoy(&mut self, path: String, is_update: bool) {
         if self.op.active { return; }
         self.op = OpProgress::default();
         self.op.active = true;
-        self.op.label  = format!("{} Ventoy en {}", if is_update {"Actualizando"} else {"Instalando"}, path);
-        self.op.log(&format!("Iniciando {} en {}", if is_update {"actualizacion"} else {"instalacion"}, path), LogLevel::Info);
+        self.op.label  = if is_update { self.tf("ventoy_updating", &[&path]) } else { self.tf("ventoy_installing", &[&path]) };
+        let act = if is_update { self.t("ventoy_updating_action") } else { self.t("ventoy_installing_action") };
+        self.op.log(&format!("{} {} {}", act, if is_update {"update"} else {"install"}, path), LogLevel::Info);
         let (tx,rx)   = channel::<(f32,String,LogLevel,bool)>();
         let (ctx,crx) = channel::<()>();
         self.op.cancel_tx = Some(ctx);
@@ -1355,6 +1525,7 @@ impl IsoFlash {
 impl eframe::App for IsoFlash {
     fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
         save_dl_state(&self.downloads);
+        save_app_config(self.lang, &self.config.download_dir, &self.config.speed_limit);
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
@@ -1387,8 +1558,8 @@ impl eframe::App for IsoFlash {
             if let Ok(ok) = rx.try_recv() { self.has_network=ok; self.network_rx=None; }
         }
 
-        // ── Catalogo remoto: descargar si hay red ──
-        if self.has_network && !self.catalog_updating && self.catalog_rx.is_none() {
+        // ── Catalogo remoto: descargar si hay red (cada 5 min) ──
+        if self.has_network && !self.catalog_updating && self.catalog_rx.is_none() && (now - self.last_catalog_update) > 300.0 {
             self.catalog_updating = true;
             let (tx,rx) = channel();
             self.catalog_rx = Some(rx);
@@ -1397,11 +1568,24 @@ impl eframe::App for IsoFlash {
         if let Some(rx) = &self.catalog_rx {
             if let Ok(result) = rx.try_recv() {
                 if let Some(json) = result {
-                    let new_catalog = load_catalog(&json);
-                    if !new_catalog.is_empty() { self.catalog = new_catalog; }
+                    let remote_hash = hash_str(&json);
+                    if remote_hash != self.catalog_hash {
+                        let new_catalog = load_catalog(&json);
+                        if !new_catalog.is_empty() {
+                            self.catalog = new_catalog;
+                            self.catalog_hash = remote_hash;
+                            self.notif = Some((self.t("notif_catalog_updated").to_string(), now));
+                        }
+                    }
                 }
-                self.catalog_rx = None; self.catalog_updating = false;
+                self.catalog_rx = None; self.catalog_updating = false; self.last_catalog_update = now;
             }
+        }
+
+        // ── Dismiss notificacion despues de 4s ──
+        if let Some((_, start)) = self.notif {
+            if now - start > 4.0 { self.notif = None; }
+            else { ctx.request_repaint(); }
         }
 
         // ── Progreso Ventoy ──
@@ -1447,9 +1631,8 @@ impl eframe::App for IsoFlash {
         let sidebar_now = lerp_color(Color32::from_rgb(18,18,26),  Color32::from_rgb(235,237,245), self.tema_anim);
         { let mut v=ctx.style().visuals.clone(); v.panel_fill=panel_now; ctx.set_visuals(v); }
 
-        // Título dinámico: solo muestra actividad cuando actualiza catálogo
-        let title = if self.catalog_updating { "IsoFlash  ↻" } else { "IsoFlash" };
-        ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.to_string()));
+        // Título de ventana fijo
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title("IsoFlash".to_string()));
 
         // Logo pulso — usa t del frame actual
         let t   = ctx.input(|i|i.time) as f32;
@@ -1482,20 +1665,36 @@ impl eframe::App for IsoFlash {
                         ui.add_space(4.0);
                         let nc = match self.tema { Tema::Oscuro=>Color32::from_rgb(180,80,80), Tema::Claro=>Color32::from_rgb(200,60,60) };
                         ui.label(egui::RichText::new("●").size(10.0).color(nc))
-                            .on_hover_text("Sin conexion — usando catalogo local");
+                            .on_hover_text(self.t("offline_indicator"));
                     }
                 });
+                // Notificacion temporal
+                if let Some((ref msg, _)) = self.notif {
+                    ui.add_space(2.0);
+                    let nc = match self.tema { Tema::Oscuro=>Color32::from_rgb(80,200,120), Tema::Claro=>Color32::from_rgb(30,140,60) };
+                    ui.label(egui::RichText::new(msg.as_str()).size(11.0).color(nc));
+                }
                 ui.add_space(24.0);
-                sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Dashboard,    "🖥","Dashboard",    false); ui.add_space(4.0);
-                sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Catalogo,     "📦","Catalogo",     false); ui.add_space(4.0);
-                sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Descargas,    "⬇","Descargas",    has_dl); ui.add_space(4.0);
-                sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Locales,      "💾","ISOs Locales", false); ui.add_space(4.0);
-                sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Flasheo,      "🔥","Flasheo",      false); ui.add_space(4.0);
-                sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Persistencia, "💿","Persistencia", false); ui.add_space(4.0);
-                sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Logs,         "📋","Logs",         op_active);
+                let nav_dashboard = self.t("nav_dashboard").to_string();
+                let nav_catalog = self.t("nav_catalog").to_string();
+                let nav_downloads = self.t("nav_downloads").to_string();
+                let nav_local_isos = self.t("nav_local_isos").to_string();
+                let nav_flash = self.t("nav_flash").to_string();
+                let nav_persistence = self.t("nav_persistence").to_string();
+                let nav_logs = self.t("nav_logs").to_string();
+                let nav_configuration = self.t("nav_configuration").to_string();
+                let theme_light = self.t("theme_light").to_string();
+                let theme_dark = self.t("theme_dark").to_string();
+                sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Dashboard,    "🖥",&nav_dashboard, false); ui.add_space(4.0);
+                sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Catalogo,     "📦",&nav_catalog, false); ui.add_space(4.0);
+                sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Descargas,    "⬇",&nav_downloads, has_dl); ui.add_space(4.0);
+                sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Locales,      "💾",&nav_local_isos, false); ui.add_space(4.0);
+                sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Flasheo,      "🔥",&nav_flash, false); ui.add_space(4.0);
+                sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Persistencia, "💿",&nav_persistence, false); ui.add_space(4.0);
+                sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Logs,         "📋",&nav_logs, op_active);
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                     ui.add_space(8.0);
-                    let (ico,lbl) = match self.tema { Tema::Oscuro=>("\u{2600}","Tema Claro"), Tema::Claro=>("\u{1F319}","Tema Oscuro") };
+                    let (ico,lbl): (&str, &str) = match self.tema { Tema::Oscuro=>("\u{2600}",&theme_light), Tema::Claro=>("\u{1F319}",&theme_dark) };
                     let tfc = match self.tema { Tema::Oscuro=>Color32::from_rgb(180,185,200), Tema::Claro=>Color32::from_rgb(60,65,90) };
                     if ui.add(egui::Button::new(egui::RichText::new(format!("{ico}  {lbl}")).size(13.0).color(tfc))
                         .fill(sidebar_now).rounding(Rounding::same(8.0)).min_size(Vec2::new(150.0,34.0))).clicked() {
@@ -1503,7 +1702,7 @@ impl eframe::App for IsoFlash {
                         self.apply_theme(ctx);
                     }
                     ui.add_space(4.0);
-                    sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Configuracion,"⚙","Configuracion",false);
+                    sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Configuracion,"⚙",&nav_configuration,false);
                 });
             });
 
@@ -1516,14 +1715,14 @@ impl eframe::App for IsoFlash {
                 // Header
                 ui.horizontal(|ui| {
                     let (tit,sub) = match self.panel {
-                        Panel::Dashboard     => ("Dashboard",     "USBs conectados y estado Ventoy"),
-                        Panel::Catalogo      => ("Catalogo",      "Descarga ISOs verificadas"),
-                        Panel::Descargas     => ("Descargas",     "Cola de descargas activa"),
-                        Panel::Locales       => ("ISOs Locales",  "Archivos ISO en tu sistema"),
-                        Panel::Flasheo       => ("Flasheo",       "Escribe ISOs a tus USBs"),
-                        Panel::Persistencia  => ("Persistencia",  "Configura almacenamiento persistente"),
-                        Panel::Logs          => ("Logs",          "Progreso y detalles de operaciones"),
-                        Panel::Configuracion => ("Configuracion", "Ajustes de la aplicacion"),
+                        Panel::Dashboard     => (self.t("nav_dashboard"),     self.t("panel_dashboard_sub")),
+                        Panel::Catalogo      => (self.t("nav_catalog"),       self.t("panel_catalog_sub")),
+                        Panel::Descargas     => (self.t("nav_downloads"),     self.t("panel_downloads_sub")),
+                        Panel::Locales       => (self.t("nav_local_isos"),    self.t("panel_local_sub")),
+                        Panel::Flasheo       => (self.t("nav_flash"),         self.t("panel_flash_sub")),
+                        Panel::Persistencia  => (self.t("nav_persistence"),   self.t("panel_persistence_sub")),
+                        Panel::Logs          => (self.t("nav_logs"),          self.t("panel_logs_sub")),
+                        Panel::Configuracion => (self.t("nav_configuration"), self.t("panel_configuration_sub")),
                     };
                     let fade = ctx.animate_value_with_time(egui::Id::new("panel_fade"), 1.0, 0.25);
                     let a = (fade*255.0) as u8;
@@ -1535,13 +1734,14 @@ impl eframe::App for IsoFlash {
                 });
                 ui.add_space(10.0); ui.separator(); ui.add_space(12.0);
 
+                let mut lang_changed = false;
                 let mut go_downloads = false;
 
                 match self.panel {
-                    Panel::Dashboard => draw_dashboard(ui, &self.usbs, self.scanning, op_active, op_cancel, &self.tema, &mut dash_action),
-                    Panel::Catalogo  => draw_catalog(ui, &self.catalog, &mut self.cat_search, &mut self.cat_filter, &mut self.cat_win_popup, &mut self.cat_win_name, &mut self.downloads, &self.config, &self.tema, &mut go_downloads),
+                    Panel::Dashboard => draw_dashboard(ui, &self.usbs, self.scanning, op_active, op_cancel, &self.tema, &self.i18n, &mut dash_action),
+                    Panel::Catalogo  => draw_catalog(ui, &self.catalog, &mut self.cat_search, &mut self.cat_filter, &mut self.cat_win_popup, &mut self.cat_win_name, &mut self.downloads, &self.config, &self.tema, &self.i18n, self.catalog_updating, &mut go_downloads),
                     Panel::Descargas => {
-                        if let Some(act) = draw_descargas(ui, &mut self.downloads, &self.config, &self.tema) {
+                        if let Some(act) = draw_descargas(ui, &mut self.downloads, &self.config, &self.tema, &self.i18n) {
                             match act {
                                 DlAction::Start(i)   => start_download(&mut self.downloads[i], &self.config),
                                 DlAction::Pause(i)   => { if let Some(tx) = self.downloads[i].pause_tx.take() { let _ = tx.send(()); } }
@@ -1556,16 +1756,20 @@ impl eframe::App for IsoFlash {
                         }
                     }
                     Panel::Locales => {
-                        if draw_locales(ui, &self.iso_files, &self.config.download_dir, &self.tema) {
+                        if draw_locales(ui, &self.iso_files, &self.config.download_dir, &self.tema, &self.i18n) {
                             self.iso_files = scan_iso_files(&self.config.download_dir);
                         }
                     }
-                    Panel::Configuracion => draw_configuracion(ui, &mut self.config, &self.path_sug.clone(), &mut self.show_path_sug, &self.tema),
-                    Panel::Logs => draw_logs(ui, ctx, &mut self.op, &self.tema),
+                    Panel::Configuracion => draw_configuracion(ui, &mut self.config, &self.path_sug.clone(), &mut self.show_path_sug, &self.tema, &self.i18n, &mut self.lang, &mut lang_changed),
+                    Panel::Logs => draw_logs(ui, ctx, &mut self.op, &self.tema, &self.i18n),
                     _ => {
                         let c = match self.tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(100,110,140) };
-                        ui.vertical_centered(|ui| { ui.add_space(80.0); ui.label(egui::RichText::new("\u{1F6A7}  En construccion").size(16.0).color(c)); });
+                        ui.vertical_centered(|ui| { ui.add_space(80.0); ui.label(egui::RichText::new(format!("\u{1F6A7}  {}", self.t("logs_under_construction"))).size(16.0).color(c)); });
                     }
+                }
+
+                if lang_changed {
+                    self.set_language(self.lang);
                 }
 
                 if go_downloads { self.panel = Panel::Descargas; }
@@ -1574,24 +1778,28 @@ impl eframe::App for IsoFlash {
         // ── Popup Windows ──
         if self.cat_win_popup {
             let url = if self.cat_win_name.contains("11") { "https://www.microsoft.com/software-download/windows11" } else { "https://www.microsoft.com/software-download/windows10" };
-            egui::Window::new(format!("\u{1FA9F}  {} — Descarga especial",&self.cat_win_name))
+            let title = self.tf("windows_popup_title", &[&self.cat_win_name]);
+            egui::Window::new(format!("\u{1FA9F}  {}", title))
                 .collapsible(false).resizable(false).anchor(egui::Align2::CENTER_CENTER,[0.0,0.0]).fixed_size([440.0,0.0])
                 .show(ctx, |ui| {
                     ui.add_space(6.0);
                     Frame::none().fill(Color32::from_rgb(60,40,10)).rounding(Rounding::same(8.0)).inner_margin(12.0).show(ui, |ui| {
-                        ui.label(egui::RichText::new("\u{26A0}  Windows no permite descarga directa de ISOs").size(13.0).strong().color(Color32::from_rgb(230,170,60)));
+                        ui.label(egui::RichText::new(format!("\u{26A0}  {}", self.t("windows_popup_warning"))).size(13.0).strong().color(Color32::from_rgb(230,170,60)));
                     });
                     ui.add_space(10.0);
-                    ui.label("Microsoft exige aceptar terminos de licencia antes de entregar la ISO.");
+                    ui.label(self.t("windows_popup_desc"));
                     ui.add_space(8.0);
-                    ui.label(egui::RichText::new("Pasos:").size(13.0).strong());
-                    ui.label("1.  Visita el enlace oficial"); ui.label("2.  Elige idioma y edicion"); ui.label("3.  Descarga la ISO"); ui.label("4.  Agregala en ISOs Locales");
+                    ui.label(egui::RichText::new(self.t("windows_popup_steps")).size(13.0).strong());
+                    ui.label(self.t("windows_popup_step1"));
+                    ui.label(self.t("windows_popup_step2"));
+                    ui.label(self.t("windows_popup_step3"));
+                    ui.label(self.t("windows_popup_step4"));
                     ui.add_space(10.0);
                     Frame::none().fill(match self.tema { Tema::Oscuro=>Color32::from_rgb(20,20,30), Tema::Claro=>Color32::from_rgb(235,238,250) }).rounding(Rounding::same(6.0)).inner_margin(8.0).show(ui, |ui| {
                         ui.label(egui::RichText::new(url).size(11.0).monospace().color(Color32::from_rgb(80,160,240)));
                     });
                     ui.add_space(12.0);
-                    if ui.add(egui::Button::new(egui::RichText::new("Cerrar").size(13.0).color(Color32::WHITE)).fill(Color32::from_rgb(40,80,180)).rounding(Rounding::same(7.0)).min_size(Vec2::new(100.0,30.0))).clicked() {
+                    if ui.add(egui::Button::new(egui::RichText::new(self.t("windows_popup_close")).size(13.0).color(Color32::WHITE)).fill(Color32::from_rgb(40,80,180)).rounding(Rounding::same(7.0)).min_size(Vec2::new(100.0,30.0))).clicked() {
                         self.cat_win_popup = false;
                     }
                     ui.add_space(4.0);
