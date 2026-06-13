@@ -61,7 +61,7 @@ fn save_app_config(lang: Language, download_dir: &str, speed_limit: &SpeedLimit)
 }
 
 fn load_app_config() -> Option<(Language, String, String)> {
-    let path = format!("{}/config.json", format!("{}/.config/isoflash", std::env::var("HOME").unwrap_or_else(|_| ".".into())));
+    let path = format!("{}/config.json", config_dir());
     let s = std::fs::read_to_string(&path).ok()?;
     let v: serde_json::Value = serde_json::from_str(&s).ok()?;
     let lang = match v["lang"].as_str().unwrap_or("English") {
@@ -105,6 +105,54 @@ enum Panel { #[default] Dashboard, Catalogo, Descargas, Locales, Flasheo, Persis
 #[derive(Default, PartialEq, Clone)]
 enum Tema { #[default] Oscuro, Claro }
 
+struct ThemeColors {
+    card_bg: Color32, border: Color32, text: Color32, text_muted: Color32,
+    text_dim: Color32, text_title: Color32, text_path: Color32,
+    icon_empty: Color32,
+    section_title: Color32, bar_bg: Color32,
+    badge_bg: Color32, badge_fg: Color32,
+    label_dim: Color32,
+    btn_clear_fill: Color32, btn_clear_fg: Color32,
+    sug_bg: Color32,
+    sidebar_fill: Color32, panel_fill: Color32,
+    dash_no_ventoy_bg: Color32, dash_no_ventoy_fg: Color32,
+}
+
+impl Tema {
+    fn colors(&self) -> ThemeColors {
+        match self {
+            Tema::Oscuro => ThemeColors {
+                card_bg: Color32::from_rgb(22,22,32), border: Color32::from_rgb(40,44,60),
+                text: Color32::from_rgb(130,140,160), text_muted: Color32::from_rgb(100,110,130),
+                text_dim: Color32::from_rgb(90,95,115), text_title: Color32::WHITE,
+                text_path: Color32::from_rgb(130,140,160),
+                icon_empty: Color32::from_rgb(60,65,90),
+                section_title: Color32::from_rgb(80,140,255), bar_bg: Color32::from_rgb(18,18,28),
+                badge_bg: Color32::from_rgb(30,35,55), badge_fg: Color32::from_rgb(180,190,220),
+                label_dim: Color32::from_rgb(160,170,190),
+                btn_clear_fill: Color32::from_rgb(30,30,45), btn_clear_fg: Color32::from_rgb(160,170,190),
+                sug_bg: Color32::from_rgb(28,28,40),
+                sidebar_fill: Color32::from_rgb(18,18,26), panel_fill: Color32::from_rgb(15,15,20),
+                dash_no_ventoy_bg: Color32::from_rgb(50,50,70), dash_no_ventoy_fg: Color32::from_rgb(130,140,160),
+            },
+            Tema::Claro => ThemeColors {
+                card_bg: Color32::WHITE, border: Color32::from_rgb(210,215,230),
+                text: Color32::from_rgb(80,90,120), text_muted: Color32::from_rgb(100,110,140),
+                text_dim: Color32::from_rgb(110,120,150), text_title: Color32::from_rgb(20,25,50),
+                text_path: Color32::from_rgb(90,100,135),
+                icon_empty: Color32::from_rgb(150,160,195),
+                section_title: Color32::from_rgb(40,80,200), bar_bg: Color32::from_rgb(230,232,245),
+                badge_bg: Color32::from_rgb(220,225,245), badge_fg: Color32::from_rgb(60,70,120),
+                label_dim: Color32::from_rgb(60,65,90),
+                btn_clear_fill: Color32::from_rgb(225,227,240), btn_clear_fg: Color32::from_rgb(70,75,100),
+                sug_bg: Color32::from_rgb(240,242,255),
+                sidebar_fill: Color32::from_rgb(235,237,245), panel_fill: Color32::from_rgb(245,246,250),
+                dash_no_ventoy_bg: Color32::from_rgb(220,220,235), dash_no_ventoy_fg: Color32::from_rgb(100,105,140),
+            },
+        }
+    }
+}
+
 #[derive(Default, PartialEq, Clone, Debug)]
 enum CatFilter { #[default] All, Rolling, Lts, NoSystemd, Server, Security, Gaming, Windows }
 
@@ -137,11 +185,11 @@ fn hash_str(s: &str) -> u64 {
 // ─── Structs ──────────────────────────────────────────────────────────────────
 
 #[derive(Clone, Debug)]
-struct UsbDevice { name: String, model: String, size_bytes: u64, path: String, has_ventoy: bool }
+struct UsbDevice { model: String, size_bytes: u64, path: String, has_ventoy: bool }
 
 #[derive(Clone)]
 struct Distro {
-    id: String, name: String, logo: String, description: String,
+    name: String, logo: String, description: String,
     category: CatFilter, arch: String, size_mb: u64, url: String, is_windows: bool,
 }
 
@@ -282,7 +330,7 @@ fn parse_category(s: &str) -> CatFilter {
         "security"  => CatFilter::Security,
         "gaming"    => CatFilter::Gaming,
         "windows"   => CatFilter::Windows,
-        _           => CatFilter::Lts,
+        _           => CatFilter::All,
     }
 }
 
@@ -292,8 +340,7 @@ fn load_catalog(json: &str) -> Vec<Distro> {
     };
     v["distros"].as_array().unwrap_or(&vec![]).iter().filter_map(|d| {
         Some(Distro {
-            id:          d["id"].as_str()?.to_string(),
-             name:        d["name"].as_str()?.to_string(),
+            name:        d["name"].as_str()?.to_string(),
              logo:        d["logo"].as_str().unwrap_or("").to_string(),
              description: d["description"].as_str().unwrap_or("").to_string(),
              category:    parse_category(d["category"].as_str().unwrap_or("lts")),
@@ -305,7 +352,7 @@ fn load_catalog(json: &str) -> Vec<Distro> {
     }).collect()
 }
 
-fn cat_badge(cat: &CatFilter, t: &Tema, i18n: &HashMap<String,String>) -> (Color32, Color32, String) {
+fn cat_badge(cat: &CatFilter, th: &ThemeColors, i18n: &HashMap<String,String>) -> (Color32, Color32, String) {
     let k = match cat {
         CatFilter::All => "cat_badge_all", CatFilter::Rolling => "cat_badge_rolling",
         CatFilter::Lts => "cat_badge_lts", CatFilter::NoSystemd => "cat_badge_nosystemd",
@@ -313,29 +360,7 @@ fn cat_badge(cat: &CatFilter, t: &Tema, i18n: &HashMap<String,String>) -> (Color
         CatFilter::Gaming => "cat_badge_gaming", CatFilter::Windows => "cat_badge_windows",
     };
     let txt = i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
-    let (bg, fg) = match t {
-        Tema::Oscuro => match cat {
-            CatFilter::All       => (Color32::from_rgb(40,40,60),   Color32::from_rgb(180,180,200)),
-            CatFilter::Rolling   => (Color32::from_rgb(60,30,90),   Color32::from_rgb(180,120,230)),
-            CatFilter::Lts       => (Color32::from_rgb(20,60,40),   Color32::from_rgb(80,200,120)),
-            CatFilter::NoSystemd => (Color32::from_rgb(80,40,0),    Color32::from_rgb(220,150,60)),
-            CatFilter::Server    => (Color32::from_rgb(20,50,80),   Color32::from_rgb(80,160,220)),
-            CatFilter::Security  => (Color32::from_rgb(80,30,30),   Color32::from_rgb(220,100,100)),
-            CatFilter::Gaming    => (Color32::from_rgb(80,50,20),   Color32::from_rgb(220,160,60)),
-            CatFilter::Windows   => (Color32::from_rgb(0,50,100),   Color32::from_rgb(80,160,240)),
-        },
-        Tema::Claro => match cat {
-            CatFilter::All       => (Color32::from_rgb(220,220,235), Color32::from_rgb(70,70,110)),
-            CatFilter::Rolling   => (Color32::from_rgb(230,215,245), Color32::from_rgb(110,50,170)),
-            CatFilter::Lts       => (Color32::from_rgb(210,240,220), Color32::from_rgb(30,130,70)),
-            CatFilter::NoSystemd => (Color32::from_rgb(255,240,210), Color32::from_rgb(150,80,0)),
-            CatFilter::Server    => (Color32::from_rgb(210,230,245), Color32::from_rgb(30,100,170)),
-            CatFilter::Security  => (Color32::from_rgb(250,220,220), Color32::from_rgb(180,40,40)),
-            CatFilter::Gaming    => (Color32::from_rgb(250,235,205), Color32::from_rgb(160,100,10)),
-            CatFilter::Windows   => (Color32::from_rgb(210,230,255), Color32::from_rgb(20,80,190)),
-        },
-    };
-    (bg, fg, txt)
+    (th.badge_bg, th.badge_fg, txt)
 }
 
 // ─── USB Scan ─────────────────────────────────────────────────────────────────
@@ -359,7 +384,7 @@ fn scan_usbs_lsblk() -> Option<Vec<UsbDevice>> {
         .or_else(||dev["size"].as_str().and_then(|s|s.parse().ok())).unwrap_or(0);
         let path        = format!("/dev/{}", name);
         let has_ventoy  = check_ventoy(&name);
-        Some(UsbDevice { name, model, size_bytes, path, has_ventoy })
+        Some(UsbDevice { model, size_bytes, path, has_ventoy })
     }).collect())
 }
 
@@ -384,7 +409,7 @@ fn scan_usbs_sysfs() -> Vec<UsbDevice> {
         .unwrap_or_else(|_|"USB Device".into()).trim().to_string();
         let path = format!("/dev/{}", name);
         let has_ventoy = check_ventoy(&name);
-        result.push(UsbDevice { name, model, size_bytes, path, has_ventoy });
+        result.push(UsbDevice { model, size_bytes, path, has_ventoy });
     }
     result
 }
@@ -437,47 +462,47 @@ fn find_ventoy_bin(send: &dyn Fn(f32,&str,LogLevel,bool)) -> Option<String> {
             }
         }
 
-        // 1. PATH del sistema
-        if Command::new("which").arg("ventoy").output().map(|o|o.status.success()).unwrap_or(false) {
-            if let Ok(o) = Command::new("which").arg("ventoy").output() {
-                let p = String::from_utf8_lossy(&o.stdout).trim().to_string();
-                if !p.is_empty() { send(0.23,"ventoy encontrado en PATH",LogLevel::Info,false); return Some(p); }
-            }
+    // 1. PATH del sistema
+    if Command::new("which").arg("ventoy").output().map(|o|o.status.success()).unwrap_or(false) {
+        if let Ok(o) = Command::new("which").arg("ventoy").output() {
+            let p = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if !p.is_empty() { send(0.23,"ventoy encontrado en PATH",LogLevel::Info,false); return Some(p); }
         }
-        // 2. /opt/ventoy
-        if std::path::Path::new("/opt/ventoy/Ventoy2Disk.sh").exists() {
-            send(0.23,"Ventoy encontrado en /opt/ventoy",LogLevel::Info,false);
-            return Some("/opt/ventoy/Ventoy2Disk.sh".into());
-        }
-        // 3. ~/Descargas, ~/Downloads, ~ (un nivel)
-        let home = std::env::var("HOME").unwrap_or_else(|_|"/root".into());
-        for base in [format!("{}/Descargas",&home), format!("{}/Downloads",&home), home.clone()] {
-            if let Ok(entries) = std::fs::read_dir(&base) {
-                for e in entries.flatten() {
-                    let fname = e.file_name().to_string_lossy().to_lowercase();
-                    if fname.starts_with("ventoy") && e.path().is_dir() {
-                        let script = e.path().join("Ventoy2Disk.sh");
-                        if script.exists() {
-                            let s = script.to_string_lossy().to_string();
-                            send(0.24,&format!("Ventoy encontrado: {}",s),LogLevel::Info,false);
-                            return Some(s);
-                        }
+    }
+    // 2. /opt/ventoy
+    if std::path::Path::new("/opt/ventoy/Ventoy2Disk.sh").exists() {
+        send(0.23,"Ventoy encontrado en /opt/ventoy",LogLevel::Info,false);
+        return Some("/opt/ventoy/Ventoy2Disk.sh".into());
+    }
+    // 3. ~/Descargas, ~/Downloads, ~ (un nivel)
+    let home = std::env::var("HOME").unwrap_or_else(|_|"/root".into());
+    for base in [format!("{}/Descargas",&home), format!("{}/Downloads",&home), home.clone()] {
+        if let Ok(entries) = std::fs::read_dir(&base) {
+            for e in entries.flatten() {
+                let fname = e.file_name().to_string_lossy().to_lowercase();
+                if fname.starts_with("ventoy") && e.path().is_dir() {
+                    let script = e.path().join("Ventoy2Disk.sh");
+                    if script.exists() {
+                        let s = script.to_string_lossy().to_string();
+                        send(0.24,&format!("Ventoy encontrado: {}",s),LogLevel::Info,false);
+                        return Some(s);
                     }
                 }
             }
         }
-        // 4. find limitado
-        send(0.25,"Buscando Ventoy2Disk.sh en el sistema (puede tardar 5s)...",LogLevel::Info,false);
-        for root in [home.as_str(),"/tmp","/opt","/usr/local"] {
-            if let Ok(o) = Command::new("timeout").args(["5","find",root,"-name","Ventoy2Disk.sh","-maxdepth","6"])
-                .stderr(std::process::Stdio::null()).output()
-                {
-                    if let Some(line) = String::from_utf8_lossy(&o.stdout).lines().next().map(|l|l.trim().to_string()) {
-                        if !line.is_empty() { send(0.26,&format!("Encontrado: {}",line),LogLevel::Info,false); return Some(line); }
-                    }
+    }
+    // 4. find limitado
+    send(0.25,"Buscando Ventoy2Disk.sh en el sistema (puede tardar 5s)...",LogLevel::Info,false);
+    for root in [home.as_str(),"/tmp","/opt","/usr/local"] {
+        if let Ok(o) = Command::new("timeout").args(["5","find",root,"-name","Ventoy2Disk.sh","-maxdepth","6"])
+            .stderr(std::process::Stdio::null()).output()
+            {
+                if let Some(line) = String::from_utf8_lossy(&o.stdout).lines().next().map(|l|l.trim().to_string()) {
+                    if !line.is_empty() { send(0.26,&format!("Encontrado: {}",line),LogLevel::Info,false); return Some(line); }
                 }
-        }
-        None
+            }
+    }
+    None
 }
 
 // ─── Red ──────────────────────────────────────────────────────────────────────
@@ -629,13 +654,11 @@ fn scan_iso_files(dir: &str) -> Vec<IsoFile> {
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
-fn sidebar_btn(ui: &mut egui::Ui, ctx: &egui::Context, panel: &mut Panel, tema: &Tema, target: Panel, icon: &str, label: &str, badge: bool) {
+fn sidebar_btn(ui: &mut egui::Ui, ctx: &egui::Context, panel: &mut Panel, th: &ThemeColors, target: Panel, icon: &str, label: &str, badge: bool) {
     let selected = *panel == target;
     let anim = ctx.animate_bool_with_time(egui::Id::new(format!("btn_{:?}",target)), selected, 0.18);
-    let bg_base = match tema { Tema::Oscuro=>Color32::from_rgb(18,18,26), Tema::Claro=>Color32::from_rgb(235,237,245) };
-    let bg = lerp_color(bg_base, Color32::from_rgb(40,80,180), anim);
-    let base_fg = match tema { Tema::Oscuro=>Color32::from_rgb(180,185,200), Tema::Claro=>Color32::from_rgb(55,60,90) };
-    let fg = lerp_color(base_fg, Color32::WHITE, anim);
+    let bg = lerp_color(th.sidebar_fill, Color32::from_rgb(40,80,180), anim);
+    let fg = lerp_color(th.label_dim, Color32::WHITE, anim);
     let resp = ui.add(egui::Button::new(egui::RichText::new(format!("{icon}  {label}")).size(14.0).color(fg))
     .fill(bg).rounding(Rounding::same(8.0)).min_size(Vec2::new(150.0,38.0)));
     if resp.clicked() { *panel = target.clone(); }
@@ -656,28 +679,24 @@ fn sidebar_btn(ui: &mut egui::Ui, ctx: &egui::Context, panel: &mut Panel, tema: 
 
 // ─── Draw Dashboard ───────────────────────────────────────────────────────────
 
-fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], _scanning: bool, op_active: bool, op_cancel: bool, tema: &Tema, i18n: &HashMap<String,String>, action: &mut Option<DashAction>) {
+fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], _scanning: bool, op_active: bool, op_cancel: bool, th: &ThemeColors, i18n: &HashMap<String,String>, action: &mut Option<DashAction>) {
     let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
-    // Estado vacío — siempre muestra el mismo mensaje, el scan es completamente silencioso
     if usbs.is_empty() {
-        let ic = match tema { Tema::Oscuro=>Color32::from_rgb(60,65,90),    Tema::Claro=>Color32::from_rgb(150,160,195) };
-        let tc = match tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(80,90,120) };
-        let t2 = match tema { Tema::Oscuro=>Color32::from_rgb(90,95,115),   Tema::Claro=>Color32::from_rgb(110,120,150) };
         ui.vertical_centered(|ui| {
             ui.add_space(60.0);
-            ui.label(egui::RichText::new("💾").size(48.0).color(ic));
+            ui.label(egui::RichText::new("💾").size(48.0).color(th.icon_empty));
             ui.add_space(12.0);
-            ui.label(egui::RichText::new(tr("dash_no_usb")).size(15.0).color(tc));
+            ui.label(egui::RichText::new(tr("dash_no_usb")).size(15.0).color(th.text));
             ui.add_space(6.0);
-            ui.label(egui::RichText::new(tr("dash_auto_detect")).size(12.0).color(t2));
+            ui.label(egui::RichText::new(tr("dash_auto_detect")).size(12.0).color(th.text_dim));
         });
         return;
     }
-    let card_bg  = match tema { Tema::Oscuro=>Color32::from_rgb(22,22,32),    Tema::Claro=>Color32::WHITE };
-    let brd      = match tema { Tema::Oscuro=>Color32::from_rgb(40,44,60),    Tema::Claro=>Color32::from_rgb(210,215,230) };
-    let badge_bg = match tema { Tema::Oscuro=>Color32::from_rgb(30,35,55),    Tema::Claro=>Color32::from_rgb(220,225,245) };
-    let badge_fg = match tema { Tema::Oscuro=>Color32::from_rgb(180,190,220), Tema::Claro=>Color32::from_rgb(60,70,120) };
-    let path_col = match tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(90,100,135) };
+    let card_bg  = th.card_bg;
+    let brd      = th.border;
+    let badge_bg = th.badge_bg;
+    let badge_fg = th.badge_fg;
+    let path_col = th.text_path;
     egui::ScrollArea::vertical().max_height(ui.available_height()).show(ui, |ui| {
         for usb in usbs {
             let mut local: Option<DashAction> = None;
@@ -687,7 +706,7 @@ fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], _scanning: bool, op_act
                 ui.horizontal(|ui| {
                     ui.label(egui::RichText::new("🔌").size(28.0)); ui.add_space(8.0);
                     ui.vertical(|ui| {
-                        let model_col = match tema { Tema::Oscuro=>Color32::WHITE, Tema::Claro=>Color32::from_rgb(20,25,50) };
+                        let model_col = th.text_title;
                         ui.label(egui::RichText::new(&usb.model).size(15.0).strong().color(model_col));
                         ui.label(egui::RichText::new(&usb.path).size(12.0).color(path_col).monospace());
                     });
@@ -699,10 +718,7 @@ fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], _scanning: bool, op_act
                         let (vbg,vtxt,vfg) = if usb.has_ventoy {
                             (Color32::from_rgb(20,80,40), "✓ Ventoy".to_string(), Color32::from_rgb(80,220,120))
                         } else {
-                            match tema {
-                                Tema::Oscuro => (Color32::from_rgb(50,50,70), tr("dash_without_ventoy"), Color32::from_rgb(130,140,160)),
-                                   Tema::Claro  => (Color32::from_rgb(220,220,235), tr("dash_without_ventoy"), Color32::from_rgb(100,105,140)),
-                            }
+                            (th.dash_no_ventoy_bg, tr("dash_without_ventoy"), th.dash_no_ventoy_fg)
                         };
                         Frame::none().fill(vbg).rounding(Rounding::same(6.0))
                         .inner_margin(egui::Margin{left:10.0,right:10.0,top:4.0,bottom:4.0})
@@ -744,7 +760,7 @@ fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], _scanning: bool, op_act
 
 fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filter: &mut CatFilter,
                 win_popup: &mut bool, win_name: &mut String, downloads: &mut Vec<DownloadEntry>,
-                config: &AppConfig, tema: &Tema, i18n: &HashMap<String,String>, catalog_updating: bool, go_downloads: &mut bool,
+                config: &AppConfig, th: &ThemeColors, i18n: &HashMap<String,String>, catalog_updating: bool, go_downloads: &mut bool,
 ) {
     let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
     ui.horizontal(|ui| {
@@ -755,16 +771,13 @@ fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filt
             if ui.add(egui::Button::new(egui::RichText::new("✕").size(14.0)).min_size(Vec2::new(32.0,36.0))).clicked() { search.clear(); }
         }
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            let cc = match tema { Tema::Oscuro=>Color32::from_rgb(100,110,130), Tema::Claro=>Color32::from_rgb(70,80,115) };
             let lbl = tr("cat_distros_count").replace("{0}", &catalog.len().to_string());
-            ui.label(egui::RichText::new(lbl).size(12.0).color(cc));
+            ui.label(egui::RichText::new(lbl).size(12.0).color(th.text_muted));
         });
     });
     ui.add_space(6.0);
-    // Indicador sutil de actualizacion (altura fija para no mover la UI)
-    let ic = match tema { Tema::Oscuro=>Color32::from_rgb(80,90,110), Tema::Claro=>Color32::from_rgb(140,145,170) };
     let hint = if catalog_updating { tr("catalog_updating") } else { String::new() };
-    ui.add_sized(Vec2::new(ui.available_width(), 18.0), egui::Label::new(egui::RichText::new(hint).size(11.0).color(ic).italics()));
+    ui.add_sized(Vec2::new(ui.available_width(), 18.0), egui::Label::new(egui::RichText::new(hint).size(11.0).color(th.text_muted).italics()));
     ui.horizontal_wrapped(|ui| {
         for (f, key) in &[
             (CatFilter::All,"cat_filter_all"),
@@ -777,8 +790,8 @@ fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filt
                           (CatFilter::Windows,"cat_filter_windows"),
         ] {
             let sel = *filter==*f;
-            let bg = if sel { Color32::from_rgb(40,80,180) } else { match tema { Tema::Oscuro=>Color32::from_rgb(25,25,38), Tema::Claro=>Color32::from_rgb(220,222,235) } };
-            let fg = if sel { Color32::WHITE } else { match tema { Tema::Oscuro=>Color32::from_rgb(160,170,190), Tema::Claro=>Color32::from_rgb(60,65,90) } };
+            let bg = if sel { Color32::from_rgb(40,80,180) } else { th.bar_bg };
+            let fg = if sel { Color32::WHITE } else { th.label_dim };
             let lbl = tr(*key);
             if ui.add(egui::Button::new(egui::RichText::new(lbl).size(12.0).color(fg)).fill(bg).rounding(Rounding::same(6.0)).min_size(Vec2::new(0.0,26.0))).clicked() { *filter=f.clone(); }
             ui.add_space(4.0);
@@ -791,15 +804,14 @@ fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filt
     (q.is_empty() || d.name.to_lowercase().contains(&q) || d.description.to_lowercase().contains(&q) || d.arch.to_lowercase().contains(&q))
     ).collect();
     if filtered.is_empty() {
-        let c = match tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(90,100,130) };
-        ui.vertical_centered(|ui| { ui.add_space(40.0); ui.label(egui::RichText::new(tr("cat_no_results")).size(14.0).color(c)); });
+        ui.vertical_centered(|ui| { ui.add_space(40.0); ui.label(egui::RichText::new(tr("cat_no_results")).size(14.0).color(th.text)); });
         return;
     }
-    let card_bg  = match tema { Tema::Oscuro=>Color32::from_rgb(22,22,32), Tema::Claro=>Color32::WHITE };
-    let brd      = match tema { Tema::Oscuro=>Color32::from_rgb(40,44,60),  Tema::Claro=>Color32::from_rgb(210,215,230) };
-    let desc_col = match tema { Tema::Oscuro=>Color32::from_rgb(140,150,170), Tema::Claro=>Color32::from_rgb(75,85,110) };
-    let meta_col = match tema { Tema::Oscuro=>Color32::from_rgb(100,110,130), Tema::Claro=>Color32::from_rgb(100,110,140) };
-    let name_col = match tema { Tema::Oscuro=>Color32::WHITE, Tema::Claro=>Color32::from_rgb(20,25,50) };
+    let card_bg  = th.card_bg;
+    let brd      = th.border;
+    let desc_col = th.text_muted;
+    let meta_col = th.text_muted;
+    let name_col = th.text_title;
     egui::ScrollArea::vertical().max_height(ui.available_height()).show(ui, |ui| {
         let avail  = ui.available_width();
         let card_w = ((avail-16.0)/2.0).max(260.0);
@@ -834,7 +846,7 @@ fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filt
                                             });
                                         }
                                     });
-                                    let (cbg,cfg,ctxt) = cat_badge(&distro.category, tema, i18n);
+                                    let (cbg,cfg,ctxt) = cat_badge(&distro.category, th, i18n);
                                     Frame::none().fill(cbg).rounding(Rounding::same(4.0))
                                     .inner_margin(egui::Margin{left:6.0,right:6.0,top:2.0,bottom:2.0}).show(ui, |ui| {
                                         ui.label(egui::RichText::new(&ctxt).size(10.0).color(cfg));
@@ -893,23 +905,21 @@ fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filt
 
 // ─── Draw Descargas ───────────────────────────────────────────────────────────
 
-fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config: &AppConfig, tema: &Tema, i18n: &HashMap<String,String>) -> Option<DlAction> {
+fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config: &AppConfig, th: &ThemeColors, i18n: &HashMap<String,String>) -> Option<DlAction> {
     let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
-    let card_bg  = match tema { Tema::Oscuro=>Color32::from_rgb(22,22,32),    Tema::Claro=>Color32::WHITE };
-    let brd      = match tema { Tema::Oscuro=>Color32::from_rgb(40,44,60),    Tema::Claro=>Color32::from_rgb(210,215,230) };
-    let name_col = match tema { Tema::Oscuro=>Color32::WHITE,                 Tema::Claro=>Color32::from_rgb(20,25,50) };
-    let url_col  = match tema { Tema::Oscuro=>Color32::from_rgb(100,110,130), Tema::Claro=>Color32::from_rgb(90,100,135) };
-    let tc       = match tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(80,90,120) };
-    let bar_bg_c = match tema { Tema::Oscuro=>Color32::from_rgb(18,18,28),    Tema::Claro=>Color32::from_rgb(230,232,245) };
+    let card_bg  = th.card_bg;
+    let brd      = th.border;
+    let name_col = th.text_title;
+    let url_col  = th.text_muted;
+    let tc       = th.text;
+    let bar_bg_c = th.bar_bg;
 
     if downloads.is_empty() {
         ui.vertical_centered(|ui| {
             ui.add_space(60.0);
-            let ic = match tema { Tema::Oscuro=>Color32::from_rgb(60,65,90), Tema::Claro=>Color32::from_rgb(150,160,195) };
-            ui.label(egui::RichText::new("⬇").size(48.0).color(ic)); ui.add_space(12.0);
+            ui.label(egui::RichText::new("⬇").size(48.0).color(th.icon_empty)); ui.add_space(12.0);
             ui.label(egui::RichText::new(tr("dl_no_downloads")).size(15.0).color(tc)); ui.add_space(6.0);
-            let t2 = match tema { Tema::Oscuro=>Color32::from_rgb(90,95,115), Tema::Claro=>Color32::from_rgb(110,120,150) };
-            ui.label(egui::RichText::new(tr("dl_go_to_catalog")).size(12.0).color(t2));
+            ui.label(egui::RichText::new(tr("dl_go_to_catalog")).size(12.0).color(th.text_dim));
         });
         return None;
     }
@@ -935,18 +945,12 @@ fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config:
 
     let dl_dir_ok = validate_download_dir(&config.download_dir, i18n).is_ok();
 
-    let clear_btn_fill = match tema { Tema::Oscuro=>Color32::from_rgb(30,30,45), Tema::Claro=>Color32::from_rgb(225,227,240) };
-    let clear_btn_fg  = match tema { Tema::Oscuro=>Color32::from_rgb(160,170,190), Tema::Claro=>Color32::from_rgb(70,75,100) };
+    let clear_btn_fill = th.btn_clear_fill;
+    let clear_btn_fg  = th.btn_clear_fg;
 
     ui.horizontal(|ui| {
         let lbl = tr("dl_items_count").replace("{0}", &downloads.len().to_string());
         ui.label(egui::RichText::new(lbl).size(13.0).color(tc));
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.add(egui::Button::new(egui::RichText::new(format!("🗑  {}", tr("dl_clear_completed"))).size(12.0).color(clear_btn_fg))
-                .fill(clear_btn_fill).rounding(Rounding::same(6.0))).clicked() {
-                    return; // manejado abajo
-                }
-        });
     });
     ui.add_space(8.0);
 
@@ -969,7 +973,8 @@ fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config:
                     ui.label(egui::RichText::new(sico).size(22.0)); ui.add_space(8.0);
                     ui.vertical(|ui| {
                         ui.label(egui::RichText::new(&dl.name).size(14.0).strong().color(name_col));
-                        let url_s = if dl.url.len()>55 { &dl.url[..55] } else { &dl.url };
+                        let boundary = dl.url.char_indices().nth(55).map(|(i,_)| i).unwrap_or(dl.url.len());
+                        let url_s = &dl.url[..boundary];
                         ui.label(egui::RichText::new(format!("💾 {}  •  {}...", dl.display_size, url_s)).size(11.0).color(url_col).monospace());
                         if dl.status==DownloadStatus::Downloading && !dl.speed_str.is_empty() {
                             let pct = (dl.progress*100.0) as u32;
@@ -1014,7 +1019,7 @@ fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config:
                     ui.add_space(8.0);
                     let bw = ui.available_width()-4.0;
                     let (rect,_) = ui.allocate_exact_size(Vec2::new(bw,8.0), egui::Sense::hover());
-                    let pbg = match tema { Tema::Oscuro=>Color32::from_rgb(25,25,38), Tema::Claro=>Color32::from_rgb(220,222,240) };
+                    let pbg = th.bar_bg;
                     ui.painter().rect_filled(rect, Rounding::same(4.0), pbg);
                     if dl.progress>0.0 {
                         let fw   = rect.width()*dl.progress;
@@ -1039,18 +1044,18 @@ fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config:
 
 fn draw_flasheo(
     ui: &mut egui::Ui, usbs: &[UsbDevice], local_isos: &[IsoFile], downloads: &[DownloadEntry],
-    target_usb: &mut Option<String>, target_iso: &mut Option<String>, tema: &Tema, i18n: &HashMap<String,String>, op_active: bool
+    target_usb: &mut Option<String>, target_iso: &mut Option<String>, th: &ThemeColors, i18n: &HashMap<String,String>, op_active: bool
 ) -> Option<(String, String)> {
     let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
     let mut start_flash = None;
-    let card_bg  = match tema { Tema::Oscuro=>Color32::from_rgb(22,22,32), Tema::Claro=>Color32::WHITE };
-    let brd      = match tema { Tema::Oscuro=>Color32::from_rgb(40,44,60), Tema::Claro=>Color32::from_rgb(210,215,230) };
-    let tc       = match tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(80,90,120) };
-    let title_col= match tema { Tema::Oscuro=>Color32::WHITE, Tema::Claro=>Color32::from_rgb(20,25,50) };
+    let card_bg  = th.card_bg;
+    let brd      = th.border;
+    let tc       = th.text;
+    let title_col= th.text_title;
     
     egui::ScrollArea::vertical().max_height(ui.available_height()).show(ui, |ui| {
         // --- SELECCIONAR USB ---
-        ui.label(egui::RichText::new(tr("nav_dashboard")).size(14.0).strong().color(tc)); // Use generic text for USB selection
+        ui.label(egui::RichText::new(tr("nav_dashboard")).size(14.0).strong().color(tc));
         ui.add_space(8.0);
         let ventoy_usbs: Vec<_> = usbs.iter().filter(|u| u.has_ventoy).collect();
         if ventoy_usbs.is_empty() {
@@ -1060,7 +1065,7 @@ fn draw_flasheo(
         } else {
             for usb in ventoy_usbs {
                 let is_selected = target_usb.as_ref() == Some(&usb.path);
-                let bg = if is_selected { match tema { Tema::Oscuro=>Color32::from_rgb(40,60,100), Tema::Claro=>Color32::from_rgb(220,230,250) } } else { card_bg };
+                let bg = if is_selected { Color32::from_rgb(40,60,100) } else { card_bg };
                 let st = if is_selected { Stroke::new(2.0, Color32::from_rgb(80,140,255)) } else { Stroke::new(1.0, brd) };
                 
                 let resp = Frame::none().fill(bg).rounding(Rounding::same(8.0)).stroke(st).inner_margin(12.0)
@@ -1103,7 +1108,7 @@ fn draw_flasheo(
         } else {
             for (name, path, size) in all_isos {
                 let is_selected = target_iso.as_ref() == Some(&path);
-                let bg = if is_selected { match tema { Tema::Oscuro=>Color32::from_rgb(40,60,100), Tema::Claro=>Color32::from_rgb(220,230,250) } } else { card_bg };
+                let bg = if is_selected { Color32::from_rgb(40,60,100) } else { card_bg };
                 let st = if is_selected { Stroke::new(2.0, Color32::from_rgb(80,140,255)) } else { Stroke::new(1.0, brd) };
                 
                 let resp = Frame::none().fill(bg).rounding(Rounding::same(8.0)).stroke(st).inner_margin(12.0)
@@ -1148,13 +1153,13 @@ fn draw_flasheo(
     start_flash
 }
 
-fn draw_locales(ui: &mut egui::Ui, iso_files: &[IsoFile], scan_dir: &str, tema: &Tema, i18n: &HashMap<String,String>) -> bool {
+fn draw_locales(ui: &mut egui::Ui, iso_files: &[IsoFile], scan_dir: &str, th: &ThemeColors, i18n: &HashMap<String,String>) -> bool {
     let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
-    let card_bg  = match tema { Tema::Oscuro=>Color32::from_rgb(22,22,32),    Tema::Claro=>Color32::WHITE };
-    let brd      = match tema { Tema::Oscuro=>Color32::from_rgb(40,44,60),    Tema::Claro=>Color32::from_rgb(210,215,230) };
-    let name_col = match tema { Tema::Oscuro=>Color32::WHITE,                 Tema::Claro=>Color32::from_rgb(20,25,50) };
-    let path_col = match tema { Tema::Oscuro=>Color32::from_rgb(100,110,130), Tema::Claro=>Color32::from_rgb(90,100,135) };
-    let tc       = match tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(80,90,120) };
+    let card_bg  = th.card_bg;
+    let brd      = th.border;
+    let name_col = th.text_title;
+    let path_col = th.text_muted;
+    let tc       = th.text;
     let mut rescan = false;
     ui.horizontal(|ui| {
         ui.label(egui::RichText::new(format!("📁  {}",scan_dir)).size(13.0).color(path_col).monospace());
@@ -1166,10 +1171,9 @@ fn draw_locales(ui: &mut egui::Ui, iso_files: &[IsoFile], scan_dir: &str, tema: 
     if iso_files.is_empty() {
         ui.vertical_centered(|ui| {
             ui.add_space(50.0);
-            let ic = match tema { Tema::Oscuro=>Color32::from_rgb(60,65,90), Tema::Claro=>Color32::from_rgb(150,160,195) };
-            ui.label(egui::RichText::new("💿").size(44.0).color(ic)); ui.add_space(12.0);
+            ui.label(egui::RichText::new("💿").size(44.0).color(th.icon_empty)); ui.add_space(12.0);
             ui.label(egui::RichText::new(tr("local_no_files")).size(15.0).color(tc)); ui.add_space(6.0);
-            let t2 = match tema { Tema::Oscuro=>Color32::from_rgb(90,95,115), Tema::Claro=>Color32::from_rgb(110,120,150) };
+            let t2 = th.text_dim;
             ui.label(egui::RichText::new(tr("local_go_to_catalog_or_config")).size(12.0).color(t2));
         });
     } else {
@@ -1206,13 +1210,13 @@ fn draw_locales(ui: &mut egui::Ui, iso_files: &[IsoFile], scan_dir: &str, tema: 
 
 // ─── Draw Configuracion ───────────────────────────────────────────────────────
 
-fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[String], show_sug: &mut bool, tema: &Tema, i18n: &HashMap<String,String>, lang: &mut Language, on_lang_change: &mut bool) {
+fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[String], show_sug: &mut bool, th: &ThemeColors, i18n: &HashMap<String,String>, lang: &mut Language, on_lang_change: &mut bool) {
     let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
-    let sec_col  = match tema { Tema::Oscuro=>Color32::from_rgb(80,140,255),  Tema::Claro=>Color32::from_rgb(40,80,200) };
-    let tc       = match tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(80,90,120) };
-    let card_bg  = match tema { Tema::Oscuro=>Color32::from_rgb(22,22,32),    Tema::Claro=>Color32::WHITE };
-    let brd      = match tema { Tema::Oscuro=>Color32::from_rgb(40,44,60),    Tema::Claro=>Color32::from_rgb(210,215,230) };
-    let sug_bg   = match tema { Tema::Oscuro=>Color32::from_rgb(28,28,40),    Tema::Claro=>Color32::from_rgb(240,242,255) };
+    let sec_col  = th.section_title;
+    let tc       = th.text;
+    let card_bg  = th.card_bg;
+    let brd      = th.border;
+    let sug_bg   = th.sug_bg;
 
     egui::ScrollArea::vertical().max_height(ui.available_height()).show(ui, |ui| {
         // ── Directorio de descargas ──
@@ -1227,9 +1231,7 @@ fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[
             let resp = ui.add(egui::TextEdit::singleline(&mut config.download_dir)
             .desired_width(ui.available_width()-110.0)
             .hint_text("/home/usuario/Descargas")
-            .text_color(if dir_valid.is_ok() {
-                match tema { Tema::Oscuro=>Color32::from_rgb(200,205,220), Tema::Claro=>Color32::from_rgb(25,30,55) }
-            } else { Color32::from_rgb(220,80,80) }));
+            .text_color(if dir_valid.is_ok() { th.text_title } else { Color32::from_rgb(220,80,80) }));
             if resp.changed() { *show_sug = true; }
             // Boton crear
             ui.horizontal(|ui| {
@@ -1252,7 +1254,7 @@ fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[
                 .inner_margin(6.0).show(ui, |ui| {
                     ui.set_min_width(ui.available_width());
                     for s in suggestions {
-                        let label_col = match tema { Tema::Oscuro=>Color32::from_rgb(160,170,200), Tema::Claro=>Color32::from_rgb(40,50,90) };
+                        let label_col = th.text_title;
                         if ui.add(egui::Button::new(egui::RichText::new(format!("📁 {}",s)).size(12.0).color(label_col))
                             .fill(Color32::TRANSPARENT).rounding(Rounding::same(4.0)).min_size(Vec2::new(ui.available_width()-12.0,24.0))).clicked() {
                                 config.download_dir = s.clone();
@@ -1275,8 +1277,8 @@ fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[
             ui.add_space(12.0);
             for variant in [SpeedLimit::Low, SpeedLimit::Medium, SpeedLimit::High, SpeedLimit::Max] {
                 let sel = config.speed_limit == variant;
-                let bg  = if sel { Color32::from_rgb(40,80,180) } else { match tema { Tema::Oscuro=>Color32::from_rgb(30,30,45), Tema::Claro=>Color32::from_rgb(220,222,238) } };
-                let fg  = if sel { Color32::WHITE } else { match tema { Tema::Oscuro=>Color32::from_rgb(170,175,195), Tema::Claro=>Color32::from_rgb(60,65,90) } };
+                let bg  = if sel { Color32::from_rgb(40,80,180) } else { th.btn_clear_fill };
+                let fg  = if sel { Color32::WHITE } else { th.label_dim };
                 if ui.add(egui::Button::new(egui::RichText::new(variant.label(i18n)).size(13.0).color(fg))
                     .fill(bg).rounding(Rounding::same(7.0)).min_size(Vec2::new(280.0,32.0))).clicked() {
                         config.speed_limit = variant;
@@ -1297,8 +1299,8 @@ fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[
                                                                                  ("cfg_lang_chinese", Language::Chinese),
             ] {
                 let sel = *lang == l;
-                let bg  = if sel { Color32::from_rgb(40,80,180) } else { match tema { Tema::Oscuro=>Color32::from_rgb(30,30,45), Tema::Claro=>Color32::from_rgb(220,222,238) } };
-                let fg  = if sel { Color32::WHITE } else { match tema { Tema::Oscuro=>Color32::from_rgb(170,175,195), Tema::Claro=>Color32::from_rgb(60,65,90) } };
+                let bg  = if sel { Color32::from_rgb(40,80,180) } else { th.btn_clear_fill };
+                let fg  = if sel { Color32::WHITE } else { th.label_dim };
                 if ui.add(egui::Button::new(egui::RichText::new(tr(lbl_key)).size(13.0).color(fg))
                     .fill(bg).rounding(Rounding::same(7.0)).min_size(Vec2::new(280.0,32.0))).clicked() {
                         *lang = l;
@@ -1320,7 +1322,7 @@ fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[
                 for logo in logos {
                     let exists = std::path::Path::new("icons").join(logo).exists();
                     let (bg,fg) = if exists { (Color32::from_rgb(20,70,30), Color32::from_rgb(80,220,100)) } else {
-                        match tema { Tema::Oscuro=>(Color32::from_rgb(30,30,45),Color32::from_rgb(130,140,160)), Tema::Claro=>(Color32::from_rgb(230,232,245),Color32::from_rgb(100,110,140)) }
+                        (th.btn_clear_fill, th.text)
                     };
                     Frame::none().fill(bg).rounding(Rounding::same(5.0)).inner_margin(egui::Margin{left:7.0,right:7.0,top:3.0,bottom:3.0}).show(ui, |ui| {
                         ui.label(egui::RichText::new(logo).size(11.0).color(fg).monospace());
@@ -1334,7 +1336,7 @@ fn draw_configuracion(ui: &mut egui::Ui, config: &mut AppConfig, suggestions: &[
 
 // ─── Draw Logs ────────────────────────────────────────────────────────────────
 
-fn draw_logs(ui: &mut egui::Ui, ctx: &egui::Context, op: &mut OpProgress, tema: &Tema, i18n: &HashMap<String,String>) {
+fn draw_logs(ui: &mut egui::Ui, ctx: &egui::Context, op: &mut OpProgress, th: &ThemeColors, i18n: &HashMap<String,String>) {
     let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
     let t = ctx.input(|i|i.time) as f32;
     if op.active {
@@ -1345,7 +1347,7 @@ fn draw_logs(ui: &mut egui::Ui, ctx: &egui::Context, op: &mut OpProgress, tema: 
         let bw  = ui.available_width()-20.0;
         let (rect,_) = ui.allocate_exact_size(Vec2::new(bw,28.0), egui::Sense::hover());
         let p   = ui.painter();
-        let pbg = match tema { Tema::Oscuro=>Color32::from_rgb(25,25,38), Tema::Claro=>Color32::from_rgb(220,222,240) };
+        let pbg = th.bar_bg;
         p.rect_filled(rect, Rounding::same(8.0), pbg);
         if op.progress>0.0 {
             let fw = rect.width()*op.progress;
@@ -1354,14 +1356,13 @@ fn draw_logs(ui: &mut egui::Ui, ctx: &egui::Context, op: &mut OpProgress, tema: 
             let sh = egui::Rect::from_min_size(rect.min, Vec2::new(fw,rect.height()/2.0));
             p.rect_filled(sh, Rounding{nw:8.0,ne:8.0,sw:0.0,se:0.0}, Color32::from_rgba_premultiplied(80,140,255,60));
         }
-        let bc = match tema { Tema::Oscuro=>Color32::from_rgb(50,60,90), Tema::Claro=>Color32::from_rgb(180,185,220) };
+        let bc = th.text_muted;
         p.rect_stroke(rect, Rounding::same(8.0), Stroke::new(1.0,bc));
-        let pc = match tema { Tema::Oscuro=>Color32::WHITE, Tema::Claro=>Color32::from_rgb(20,30,70) };
+        let pc = th.text_title;
         p.text(rect.center(), egui::Align2::CENTER_CENTER, format!("{}%",pct), egui::FontId::proportional(13.0), pc);
         ui.add_space(10.0);
         if let Some(last) = op.logs.last() {
-            let lc = match tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(90,100,130) };
-            ui.label(egui::RichText::new(format!("  {}",&last.message)).size(12.0).color(lc).italics());
+            ui.label(egui::RichText::new(format!("  {}",&last.message)).size(12.0).color(th.text).italics());
         }
         ui.add_space(16.0);
         if op.cancel_tx.is_some() {
@@ -1381,12 +1382,10 @@ fn draw_logs(ui: &mut egui::Ui, ctx: &egui::Context, op: &mut OpProgress, tema: 
         ui.label(egui::RichText::new(format!("{icon}  {txt}")).size(15.0).strong().color(col));
         ui.add_space(12.0);
     } else {
-        let ic = match tema { Tema::Oscuro=>Color32::from_rgb(60,65,90), Tema::Claro=>Color32::from_rgb(150,160,195) };
-        let tc = match tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(80,90,120) };
         ui.vertical_centered(|ui| {
             ui.add_space(60.0);
-            ui.label(egui::RichText::new("📋").size(40.0).color(ic)); ui.add_space(10.0);
-            ui.label(egui::RichText::new(tr("logs_idle")).size(14.0).color(tc));
+            ui.label(egui::RichText::new("📋").size(40.0).color(th.icon_empty)); ui.add_space(10.0);
+            ui.label(egui::RichText::new(tr("logs_idle")).size(14.0).color(th.text));
         }); return;
     }
     if !op.logs.is_empty() {
@@ -1398,9 +1397,8 @@ fn draw_logs(ui: &mut egui::Ui, ctx: &egui::Context, op: &mut OpProgress, tema: 
         if anim>0.01 { ctx.request_repaint(); }
         if anim>0.01 {
             ui.add_space(8.0);
-            let lb   = match tema { Tema::Oscuro=>Color32::from_rgb(12,12,18),    Tema::Claro=>Color32::from_rgb(240,242,250) };
-            let lbrd = match tema { Tema::Oscuro=>Color32::from_rgb(40,44,65),    Tema::Claro=>Color32::from_rgb(200,205,225) };
-            let lt   = match tema { Tema::Oscuro=>Color32::from_rgb(200,205,220), Tema::Claro=>Color32::from_rgb(40,45,70) };
+            let lb   = th.panel_fill;
+            let lbrd = th.border;
             Frame::none().fill(lb).rounding(Rounding::same(10.0)).stroke(Stroke::new(1.0,lbrd)).inner_margin(12.0).show(ui, |ui| {
                 ui.set_min_width(ui.available_width()-20.0);
                 egui::ScrollArea::vertical().max_height(200.0*anim).stick_to_bottom(true).show(ui, |ui| {
@@ -1414,7 +1412,7 @@ fn draw_logs(ui: &mut egui::Ui, ctx: &egui::Context, op: &mut OpProgress, tema: 
                         ui.horizontal(|ui| {
                             ui.label(egui::RichText::new(format!("[{}]",&e.timestamp)).size(11.0).monospace().color(Color32::from_rgb(90,95,115)));
                             ui.label(egui::RichText::new(pre).size(11.0).monospace().color(col));
-                            ui.label(egui::RichText::new(&e.message).size(11.0).monospace().color(lt));
+                            ui.label(egui::RichText::new(&e.message).size(11.0).monospace().color(th.text));
                         });
                     }
                 });
@@ -1605,22 +1603,24 @@ impl IsoFlash {
             
             send(0.15, &format!("Copiando {} ...", iso_name), LogLevel::Info, false);
             
-            let mut src = match std::fs::File::open(&iso_path) {
+            let src = match std::fs::File::open(&iso_path) {
                 Ok(f) => f,
                 Err(e) => { send(1.0, &format!("Error abriendo ISO: {}", e), LogLevel::Error, true); return; }
             };
             
-            let mut dst = match std::fs::File::create(&dest_file) {
+            let dst = match std::fs::File::create(&dest_file) {
                 Ok(f) => f,
                 Err(e) => { send(1.0, &format!("Error creando archivo destino: {}", e), LogLevel::Error, true); return; }
             };
             
-            let mut buffer = vec![0u8; 4 * 1024 * 1024]; // 4MB buffer
+            use std::io::{BufReader, BufWriter, Read, Write};
+            
+            let mut reader = BufReader::with_capacity(1024 * 1024, src);
+            let mut writer = BufWriter::with_capacity(1024 * 1024, dst);
             let mut copied = 0u64;
             let mut last_report = std::time::Instant::now();
             let mut last_copied = 0u64;
-            
-            use std::io::{Read, Write};
+            let mut buffer = vec![0u8; 256 * 1024]; // 256KB buffer temperero para lectura
             
             loop {
                 if cancelled() {
@@ -1628,10 +1628,10 @@ impl IsoFlash {
                     let _ = std::fs::remove_file(&dest_file);
                     return;
                 }
-                match src.read(&mut buffer) {
+                match reader.read(&mut buffer) {
                     Ok(0) => break, // EOF
                     Ok(n) => {
-                        if let Err(e) = dst.write_all(&buffer[..n]) {
+                        if let Err(e) = writer.write_all(&buffer[..n]) {
                             send(1.0, &format!("Error de escritura: {}", e), LogLevel::Error, true);
                             return;
                         }
@@ -1654,6 +1654,7 @@ impl IsoFlash {
                     last_copied = copied;
                 }
             }
+            writer.flush().ok();
             
             // 5. Sync
             send(0.95, "Sincronizando disco (no extraiga el USB)...", LogLevel::Warn, false);
@@ -1762,12 +1763,9 @@ impl IsoFlash {
             // Comando completo: Ventoy + partprobe/partx en el mismo bloque privilegiado
             // para que solo se pida la contrasena UNA sola vez via GUI.
             // Pasamos 'y' via printf para responder automaticamente a los prompts de confirmacion del script.
-            let full_cmd = format!(
-                "cd '{vdir}' && export PATH=\"$PWD/tool/x86_64:$PATH\" && printf 'y\\ny\\ny\\n' | '{bin}' {flag} '{dev}' && partprobe '{dev}' ; partx -u '{dev}' ; udevadm settle --timeout=10",
-                vdir = ventoy_dir,
-                bin  = bin_abs.display(),
-                flag = flag,
-                dev  = path,
+            // Las rutas se pasan via variables de entorno para evitar inyeccion de shell.
+            let full_cmd = String::from(
+                "cd \"$VENTOY_DIR\" && export PATH=\"$PWD/tool/x86_64:$PATH\" && printf 'y\\ny\\ny\\n' | \"$VENTOY_BIN\" $VENTOY_FLAG \"$VENTOY_DEV\" && partprobe \"$VENTOY_DEV\" ; partx -u \"$VENTOY_DEV\" ; udevadm settle --timeout=10"
             );
 
             // Variables de entorno para mostrar GUI en la sesion grafica actual
@@ -1775,6 +1773,10 @@ impl IsoFlash {
             for v in &["DISPLAY","XAUTHORITY","WAYLAND_DISPLAY","DBUS_SESSION_BUS_ADDRESS","XDG_RUNTIME_DIR"] {
                 if let Ok(val) = std::env::var(v) { gui_env.push((v.to_string(), val)); }
             }
+            gui_env.push(("VENTOY_DIR".to_string(), ventoy_dir));
+            gui_env.push(("VENTOY_BIN".to_string(), bin_abs.display().to_string()));
+            gui_env.push(("VENTOY_FLAG".to_string(), flag.to_string()));
+            gui_env.push(("VENTOY_DEV".to_string(), path.clone()));
 
             // ── Intento 1: sudo -A con askpass GUI ──────────────────────────────
             let result = if let Some(ref ap) = gui_askpass {
@@ -1790,10 +1792,6 @@ impl IsoFlash {
                 } else {
                     // ── Intento 2: pkexec sh -c (muestra dialogo polkit nativo) ─
                     send(0.58,"Reintentando con pkexec...",LogLevel::Info,false);
-                    // Empaquetar en un wrapper script temporal para que pkexec ejecute sh
-                    let tmp_sh = "/tmp/isoflash_ventoy_install.sh";
-                    let _ = std::fs::write(tmp_sh, format!("#!/bin/sh\n{}\n", full_cmd));
-                    let _ = Command::new("chmod").args(["755", tmp_sh]).output();
                     let mut c2 = Command::new("pkexec");
                     c2.args(["sh", "-c", &full_cmd]);
                     for (k,v) in &gui_env { c2.env(k,v); }
@@ -1801,9 +1799,6 @@ impl IsoFlash {
                 }
             } else {
                 // No hay askpass GUI → usar pkexec directamente
-                let tmp_sh = "/tmp/isoflash_ventoy_install.sh";
-                let _ = std::fs::write(tmp_sh, format!("#!/bin/sh\n{}\n", full_cmd));
-                let _ = Command::new("chmod").args(["755", tmp_sh]).output();
                 let mut c = Command::new("pkexec");
                 c.args(["sh", "-c", &full_cmd]);
                 for (k,v) in &gui_env { c.env(k,v); }
@@ -2034,11 +2029,12 @@ impl eframe::App for IsoFlash {
         || self.downloads.iter().any(|d| d.status == DownloadStatus::Downloading)
         || (self.tema_anim - t_target).abs() > 0.01;
         if needs_continuous {
-            ctx.request_repaint_after(Duration::from_millis(50));
+            ctx.request_repaint_after(Duration::from_millis(16));
         } else {
-            ctx.request_repaint_after(Duration::from_millis(500));
+            ctx.request_repaint_after(Duration::from_millis(200));
         }
 
+        let th  = self.tema.colors();
         let op_active = self.op.active;
         let op_cancel = self.op.cancel_tx.is_some();
         let has_dl    = !self.downloads.is_empty();
@@ -2052,15 +2048,14 @@ impl eframe::App for IsoFlash {
                 ui.label(egui::RichText::new("⚡ IsoFlash").size(20.0).strong().color(logo_col));
                 if !self.has_network {
                     ui.add_space(4.0);
-                    let nc = match self.tema { Tema::Oscuro=>Color32::from_rgb(180,80,80), Tema::Claro=>Color32::from_rgb(200,60,60) };
-                    ui.label(egui::RichText::new("●").size(10.0).color(nc))
+                    ui.label(egui::RichText::new("●").size(10.0).color(Color32::from_rgb(180,80,80)))
                     .on_hover_text(self.t("offline_indicator"));
                 }
             });
             // Notificacion temporal
             if let Some((ref msg, _)) = self.notif {
                 ui.add_space(2.0);
-                let nc = match self.tema { Tema::Oscuro=>Color32::from_rgb(80,200,120), Tema::Claro=>Color32::from_rgb(30,140,60) };
+                let nc = Color32::from_rgb(80,200,120);
                 ui.label(egui::RichText::new(msg.as_str()).size(11.0).color(nc));
             }
             ui.add_space(24.0);
@@ -2074,24 +2069,24 @@ impl eframe::App for IsoFlash {
             let nav_configuration = self.t("nav_configuration").to_string();
             let theme_light = self.t("theme_light").to_string();
             let theme_dark = self.t("theme_dark").to_string();
-            sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Dashboard,    "🖥",&nav_dashboard, false); ui.add_space(4.0);
-            sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Catalogo,     "📦",&nav_catalog, false); ui.add_space(4.0);
-            sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Descargas,    "⬇",&nav_downloads, has_dl); ui.add_space(4.0);
-            sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Locales,      "💾",&nav_local_isos, false); ui.add_space(4.0);
-            sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Flasheo,      "🔥",&nav_flash, false); ui.add_space(4.0);
-            sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Persistencia, "💿",&nav_persistence, false); ui.add_space(4.0);
-            sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Logs,         "📋",&nav_logs, op_active);
+            sidebar_btn(ui,ctx,&mut self.panel,&th,Panel::Dashboard,    "🖥",&nav_dashboard, false); ui.add_space(4.0);
+            sidebar_btn(ui,ctx,&mut self.panel,&th,Panel::Catalogo,     "📦",&nav_catalog, false); ui.add_space(4.0);
+            sidebar_btn(ui,ctx,&mut self.panel,&th,Panel::Descargas,    "⬇",&nav_downloads, has_dl); ui.add_space(4.0);
+            sidebar_btn(ui,ctx,&mut self.panel,&th,Panel::Locales,      "💾",&nav_local_isos, false); ui.add_space(4.0);
+            sidebar_btn(ui,ctx,&mut self.panel,&th,Panel::Flasheo,      "🔥",&nav_flash, false); ui.add_space(4.0);
+            sidebar_btn(ui,ctx,&mut self.panel,&th,Panel::Persistencia, "💿",&nav_persistence, false); ui.add_space(4.0);
+            sidebar_btn(ui,ctx,&mut self.panel,&th,Panel::Logs,         "📋",&nav_logs, op_active);
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 ui.add_space(8.0);
                 let (ico,lbl): (&str, &str) = match self.tema { Tema::Oscuro=>("\u{2600}",&theme_light), Tema::Claro=>("\u{1F319}",&theme_dark) };
-                let tfc = match self.tema { Tema::Oscuro=>Color32::from_rgb(180,185,200), Tema::Claro=>Color32::from_rgb(60,65,90) };
+                let tfc = th.label_dim;
                 if ui.add(egui::Button::new(egui::RichText::new(format!("{ico}  {lbl}")).size(13.0).color(tfc))
                     .fill(sidebar_now).rounding(Rounding::same(8.0)).min_size(Vec2::new(150.0,34.0))).clicked() {
                         self.tema = match self.tema { Tema::Oscuro=>Tema::Claro, Tema::Claro=>Tema::Oscuro };
                         self.apply_theme(ctx);
                     }
                     ui.add_space(4.0);
-                    sidebar_btn(ui,ctx,&mut self.panel,&self.tema,Panel::Configuracion,"⚙",&nav_configuration,false);
+                    sidebar_btn(ui,ctx,&mut self.panel,&th,Panel::Configuracion,"⚙",&nav_configuration,false);
             });
         });
 
@@ -2115,7 +2110,7 @@ impl eframe::App for IsoFlash {
                 };
                 let fade = ctx.animate_value_with_time(egui::Id::new("panel_fade"), 1.0, 0.25);
                 let a = (fade*255.0) as u8;
-                let sc = match self.tema { Tema::Oscuro=>Color32::from_rgba_premultiplied(130,140,160,a), Tema::Claro=>Color32::from_rgba_premultiplied(75,85,120,a) };
+                let sc = Color32::from_rgba_premultiplied(th.text.r(), th.text.g(), th.text.b(), a);
                 ui.vertical(|ui| {
                     ui.label(egui::RichText::new(tit).size(26.0).strong().color(Color32::from_rgba_premultiplied(60,120,240,a)));
                     ui.label(egui::RichText::new(sub).size(13.0).color(sc));
@@ -2127,10 +2122,10 @@ impl eframe::App for IsoFlash {
             let mut go_downloads = false;
 
             match self.panel {
-                Panel::Dashboard => draw_dashboard(ui, &self.usbs, self.scanning, op_active, op_cancel, &self.tema, &self.i18n, &mut dash_action),
-              Panel::Catalogo  => draw_catalog(ui, &self.catalog, &mut self.cat_search, &mut self.cat_filter, &mut self.cat_win_popup, &mut self.cat_win_name, &mut self.downloads, &self.config, &self.tema, &self.i18n, self.catalog_updating, &mut go_downloads),
+                Panel::Dashboard => draw_dashboard(ui, &self.usbs, self.scanning, op_active, op_cancel, &th, &self.i18n, &mut dash_action),
+              Panel::Catalogo  => draw_catalog(ui, &self.catalog, &mut self.cat_search, &mut self.cat_filter, &mut self.cat_win_popup, &mut self.cat_win_name, &mut self.downloads, &self.config, &th, &self.i18n, self.catalog_updating, &mut go_downloads),
               Panel::Descargas => {
-                  if let Some(act) = draw_descargas(ui, &mut self.downloads, &self.config, &self.tema, &self.i18n) {
+                  if let Some(act) = draw_descargas(ui, &mut self.downloads, &self.config, &th, &self.i18n) {
                       match act {
                           DlAction::Start(i)   => start_download(&mut self.downloads[i], &self.config),
               DlAction::Pause(i)   => { if let Some(tx) = self.downloads[i].pause_tx.take() { let _ = tx.send(()); } }
@@ -2145,20 +2140,19 @@ impl eframe::App for IsoFlash {
                   }
               }
               Panel::Locales => {
-                  if draw_locales(ui, &self.iso_files, &self.config.download_dir, &self.tema, &self.i18n) {
+                  if draw_locales(ui, &self.iso_files, &self.config.download_dir, &th, &self.i18n) {
                       self.iso_files = scan_iso_files(&self.config.download_dir);
                   }
               }
-              Panel::Configuracion => draw_configuracion(ui, &mut self.config, &self.path_sug.clone(), &mut self.show_path_sug, &self.tema, &self.i18n, &mut self.lang, &mut lang_changed),
+              Panel::Configuracion => draw_configuracion(ui, &mut self.config, &self.path_sug.clone(), &mut self.show_path_sug, &th, &self.i18n, &mut self.lang, &mut lang_changed),
               Panel::Flasheo => {
-                  if let Some((u, i)) = draw_flasheo(ui, &self.usbs, &self.iso_files, &self.downloads, &mut self.flash_target_usb, &mut self.flash_target_iso, &self.tema, &self.i18n, op_active) {
+                  if let Some((u, i)) = draw_flasheo(ui, &self.usbs, &self.iso_files, &self.downloads, &mut self.flash_target_usb, &mut self.flash_target_iso, &th, &self.i18n, op_active) {
                       self.start_flash_iso(u, i);
                   }
               }
-              Panel::Logs => draw_logs(ui, ctx, &mut self.op, &self.tema, &self.i18n),
+              Panel::Logs => draw_logs(ui, ctx, &mut self.op, &th, &self.i18n),
               _ => {
-                  let c = match self.tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(100,110,140) };
-                  ui.vertical_centered(|ui| { ui.add_space(80.0); ui.label(egui::RichText::new(format!("\u{1F6A7}  {}", self.t("logs_under_construction"))).size(16.0).color(c)); });
+                  ui.vertical_centered(|ui| { ui.add_space(80.0); ui.label(egui::RichText::new(format!("\u{1F6A7}  {}", self.t("logs_under_construction"))).size(16.0).color(th.text)); });
               }
             }
 
@@ -2189,7 +2183,7 @@ impl eframe::App for IsoFlash {
                 ui.label(self.t("windows_popup_step3"));
                 ui.label(self.t("windows_popup_step4"));
                 ui.add_space(10.0);
-                Frame::none().fill(match self.tema { Tema::Oscuro=>Color32::from_rgb(20,20,30), Tema::Claro=>Color32::from_rgb(235,238,250) }).rounding(Rounding::same(6.0)).inner_margin(8.0).show(ui, |ui| {
+                Frame::none().fill(th.panel_fill).rounding(Rounding::same(6.0)).inner_margin(8.0).show(ui, |ui| {
                     ui.label(egui::RichText::new(url).size(11.0).monospace().color(Color32::from_rgb(80,160,240)));
                 });
                 ui.add_space(12.0);
