@@ -10,3 +10,14 @@ decompress vtoycli.xz
 decompress vtoygpt.xz
 mkexfatfs can not run, check static version
 mkexfatfs can not run, check static version
+mkexfatfs can not run, check static version
+mkexfatfs can not run, check static version
+mkexfatfs can not run, check static version
+mkexfatfs can not run, check static version
+mkexfatfs can not run, check static version
+mkexfatfs can not run, check static version
+mkexfatfs can not run, check static version
+mkexfatfs can not run, check static version
+mkexfatfs can not run, check static version
+mkexfatfs can not run, check static version
+mkexfatfs can not run, check static version
