@@ -12,6 +12,7 @@
   "theme_dark": "深色主题",
   "offline_indicator": "离线 — 使用本地目录",
   "catalog_updating": "正在更新目录...",
+  "urls_resolving": "正在解析URL...",
 
   "dash_no_usb": "未检测到USB设备",
   "dash_auto_detect": "连接时自动检测",

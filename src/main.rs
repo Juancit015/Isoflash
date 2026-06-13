@@ -8,6 +8,8 @@ use std::process::Command;
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time::{Duration, Instant};
 
+mod resolver;
+
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 const CATALOG_JSON: &str = include_str!("../catalog.json");
@@ -760,7 +762,8 @@ fn draw_dashboard(ui: &mut egui::Ui, usbs: &[UsbDevice], _scanning: bool, op_act
 
 fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filter: &mut CatFilter,
                 win_popup: &mut bool, win_name: &mut String, downloads: &mut Vec<DownloadEntry>,
-                config: &AppConfig, th: &ThemeColors, i18n: &HashMap<String,String>, catalog_updating: bool, go_downloads: &mut bool,
+                config: &AppConfig, th: &ThemeColors, i18n: &HashMap<String,String>, catalog_updating: bool, catalog_resolving: bool,
+                catalog_version: &str, catalog_updated: &str, catalog_refresh_trigger: &mut bool, go_downloads: &mut bool,
 ) {
     let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
     ui.horizontal(|ui| {
@@ -776,8 +779,30 @@ fn draw_catalog(ui: &mut egui::Ui, catalog: &[Distro], search: &mut String, filt
         });
     });
     ui.add_space(6.0);
-    let hint = if catalog_updating { tr("catalog_updating") } else { String::new() };
-    ui.add_sized(Vec2::new(ui.available_width(), 18.0), egui::Label::new(egui::RichText::new(hint).size(11.0).color(th.text_muted).italics()));
+    ui.horizontal(|ui| {
+        let hint = if catalog_updating { tr("catalog_updating") } else if catalog_resolving { tr("urls_resolving") } else { String::new() };
+        if !hint.is_empty() {
+            ui.label(egui::RichText::new(hint).size(11.0).color(th.text_muted).italics());
+        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if !catalog_version.is_empty() {
+                let meta = format!("v{} · {}", catalog_version, catalog_updated);
+                ui.label(egui::RichText::new(meta).size(11.0).color(th.text_dim).monospace());
+                ui.add_space(8.0);
+            }
+            if catalog_resolving {
+                ui.spinner();
+                ui.add_space(4.0);
+            }
+            if ui.add(egui::Button::new(egui::RichText::new("🔗 URLs").size(11.0).color(th.label_dim))
+                .fill(th.btn_clear_fill).rounding(Rounding::same(5.0)).min_size(Vec2::new(0.0,22.0)))
+                .on_hover_text("Buscar URLs actualizadas para cada distribución")
+                .clicked() {
+                *catalog_refresh_trigger = true;
+            }
+            ui.add_space(4.0);
+        });
+    });
     ui.horizontal_wrapped(|ui| {
         for (f, key) in &[
             (CatFilter::All,"cat_filter_all"),
@@ -1440,6 +1465,10 @@ struct IsoFlash {
     catalog_updating: bool,
     last_catalog_update: f64,
     catalog_hash: u64,
+    catalog_version: String,
+    catalog_updated: String,
+    catalog_resolve_rx: Option<Receiver<Option<Vec<Distro>>>>,
+    catalog_resolve_requested: bool,
     has_network: bool, network_rx: Option<Receiver<bool>>, last_net_check: f64,
     cat_search: String, cat_filter: CatFilter, cat_win_popup: bool, cat_win_name: String,
     downloads: Vec<DownloadEntry>,
@@ -1474,12 +1503,15 @@ impl Default for IsoFlash {
         };
         let download_dir = if download_dir.is_empty() { default_download_dir() } else { download_dir };
         let i18n = load_i18n(lang);
+        let has_catalog = !catalog.is_empty();
         Self {
             panel: Panel::Dashboard, tema: Tema::Oscuro, tema_anim: 0.0,
             usbs: vec![], scanning: false, last_scan: -999.0, usb_rx: None,
             rescan_after: None,
             op: OpProgress::default(), op_rx: None,
             catalog, catalog_rx: None, catalog_updating: false, last_catalog_update: -9999.0, catalog_hash,
+            catalog_version: String::new(), catalog_updated: String::new(),
+            catalog_resolve_rx: None, catalog_resolve_requested: has_catalog,
             has_network: false, network_rx: None, last_net_check: -999.0,
             cat_search: String::new(), cat_filter: CatFilter::All,
             cat_win_popup: false, cat_win_name: String::new(),
@@ -1952,6 +1984,10 @@ impl eframe::App for IsoFlash {
         if let Some(rx) = &self.catalog_rx {
             if let Ok(result) = rx.try_recv() {
                 if let Some(json) = result {
+                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&json) {
+                        if let Some(ver) = v["version"].as_str() { self.catalog_version = ver.to_string(); }
+                        if let Some(upd) = v["updated"].as_str() { self.catalog_updated = upd.to_string(); }
+                    }
                     let remote_hash = hash_str(&json);
                     if remote_hash != self.catalog_hash {
                         let new_catalog = load_catalog(&json);
@@ -1959,10 +1995,42 @@ impl eframe::App for IsoFlash {
                             self.catalog = new_catalog;
                             self.catalog_hash = remote_hash;
                             self.notif = Some((self.t("notif_catalog_updated").to_string(), now));
+                            // Trigger URL resolution on fresh catalog
+                            self.catalog_resolve_requested = true;
                         }
                     }
                 }
                 self.catalog_rx = None; self.catalog_updating = false; self.last_catalog_update = now;
+            }
+        }
+
+        // ── Resolver URLs del catálogo ──
+        if self.catalog_resolve_requested && self.catalog_resolve_rx.is_none() && !self.catalog.is_empty() && self.has_network {
+            self.catalog_resolve_requested = false;
+            let catalog = self.catalog.clone();
+            let (tx, rx) = channel();
+            self.catalog_resolve_rx = Some(rx);
+            std::thread::spawn(move || {
+                let mut resolved = catalog;
+                for distro in &mut resolved {
+                    if distro.is_windows { continue; }
+                    if let Some(new_url) = resolver::resolve_url(&distro.name, &distro.url) {
+                        distro.url = new_url;
+                    }
+                }
+                let _ = tx.send(Some(resolved));
+            });
+        }
+        if let Some(rx) = &self.catalog_resolve_rx {
+            if let Ok(Some(new_catalog)) = rx.try_recv() {
+                let changed = new_catalog.iter().zip(self.catalog.iter()).filter(|(n, o)| n.url != o.url).count();
+                self.catalog = new_catalog;
+                self.catalog_resolve_rx = None;
+                if changed > 0 {
+                    self.notif = Some((format!("🔗 {} URLs actualizadas", changed), now));
+                }
+            } else if let Ok(None) = rx.try_recv() {
+                self.catalog_resolve_rx = None;
             }
         }
 
@@ -2123,7 +2191,11 @@ impl eframe::App for IsoFlash {
 
             match self.panel {
                 Panel::Dashboard => draw_dashboard(ui, &self.usbs, self.scanning, op_active, op_cancel, &th, &self.i18n, &mut dash_action),
-              Panel::Catalogo  => draw_catalog(ui, &self.catalog, &mut self.cat_search, &mut self.cat_filter, &mut self.cat_win_popup, &mut self.cat_win_name, &mut self.downloads, &self.config, &th, &self.i18n, self.catalog_updating, &mut go_downloads),
+              Panel::Catalogo  => {
+                  let mut resolve_trigger = false;
+                  draw_catalog(ui, &self.catalog, &mut self.cat_search, &mut self.cat_filter, &mut self.cat_win_popup, &mut self.cat_win_name, &mut self.downloads, &self.config, &th, &self.i18n, self.catalog_updating, self.catalog_resolve_rx.is_some(), &self.catalog_version, &self.catalog_updated, &mut resolve_trigger, &mut go_downloads);
+                  if resolve_trigger { self.catalog_resolve_requested = true; }
+              }
               Panel::Descargas => {
                   if let Some(act) = draw_descargas(ui, &mut self.downloads, &self.config, &th, &self.i18n) {
                       match act {

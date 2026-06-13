@@ -12,6 +12,7 @@
   "theme_dark": "Dark Theme",
   "offline_indicator": "Offline — using local catalog",
   "catalog_updating": "Updating catalog...",
+  "urls_resolving": "Resolving URLs...",
 
   "dash_no_usb": "No USB devices detected",
   "dash_auto_detect": "Automatically detected when connected",
