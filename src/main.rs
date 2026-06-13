@@ -1037,6 +1037,117 @@ fn draw_descargas(ui: &mut egui::Ui, downloads: &mut Vec<DownloadEntry>, config:
 
 // ─── Draw ISOs Locales ────────────────────────────────────────────────────────
 
+fn draw_flasheo(
+    ui: &mut egui::Ui, usbs: &[UsbDevice], local_isos: &[IsoFile], downloads: &[DownloadEntry],
+    target_usb: &mut Option<String>, target_iso: &mut Option<String>, tema: &Tema, i18n: &HashMap<String,String>, op_active: bool
+) -> Option<(String, String)> {
+    let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
+    let mut start_flash = None;
+    let card_bg  = match tema { Tema::Oscuro=>Color32::from_rgb(22,22,32), Tema::Claro=>Color32::WHITE };
+    let brd      = match tema { Tema::Oscuro=>Color32::from_rgb(40,44,60), Tema::Claro=>Color32::from_rgb(210,215,230) };
+    let tc       = match tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(80,90,120) };
+    let title_col= match tema { Tema::Oscuro=>Color32::WHITE, Tema::Claro=>Color32::from_rgb(20,25,50) };
+    
+    egui::ScrollArea::vertical().max_height(ui.available_height()).show(ui, |ui| {
+        // --- SELECCIONAR USB ---
+        ui.label(egui::RichText::new(tr("nav_dashboard")).size(14.0).strong().color(tc)); // Use generic text for USB selection
+        ui.add_space(8.0);
+        let ventoy_usbs: Vec<_> = usbs.iter().filter(|u| u.has_ventoy).collect();
+        if ventoy_usbs.is_empty() {
+            Frame::none().fill(card_bg).rounding(Rounding::same(8.0)).stroke(Stroke::new(1.0,brd)).inner_margin(12.0).show(ui, |ui| {
+                ui.label(egui::RichText::new("⚠️ No se encontraron dispositivos USB con Ventoy instalado.").color(Color32::from_rgb(200,100,50)));
+            });
+        } else {
+            for usb in ventoy_usbs {
+                let is_selected = target_usb.as_ref() == Some(&usb.path);
+                let bg = if is_selected { match tema { Tema::Oscuro=>Color32::from_rgb(40,60,100), Tema::Claro=>Color32::from_rgb(220,230,250) } } else { card_bg };
+                let st = if is_selected { Stroke::new(2.0, Color32::from_rgb(80,140,255)) } else { Stroke::new(1.0, brd) };
+                
+                let resp = Frame::none().fill(bg).rounding(Rounding::same(8.0)).stroke(st).inner_margin(12.0)
+                .outer_margin(egui::Margin{left:0.0,right:0.0,top:0.0,bottom:8.0}).show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("🔌").size(20.0)); ui.add_space(8.0);
+                        ui.vertical(|ui| {
+                            ui.label(egui::RichText::new(&usb.model).size(14.0).strong().color(title_col));
+                            ui.label(egui::RichText::new(&usb.path).size(11.0).color(tc).monospace());
+                        });
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(egui::RichText::new(format_size(usb.size_bytes)).size(12.0).color(tc));
+                        });
+                    });
+                });
+                if resp.response.interact(egui::Sense::click()).clicked() {
+                    *target_usb = Some(usb.path.clone());
+                }
+            }
+        }
+        ui.add_space(20.0);
+        
+        // --- SELECCIONAR ISO ---
+        ui.label(egui::RichText::new(tr("nav_local_isos")).size(14.0).strong().color(tc));
+        ui.add_space(8.0);
+        let mut all_isos = Vec::new();
+        for iso in local_isos { all_isos.push((iso.name.clone(), iso.path.clone(), iso.size_bytes)); }
+        for dl in downloads {
+            if dl.status == DownloadStatus::Done {
+                if let Ok(m) = std::fs::metadata(&dl.dest_path) {
+                    all_isos.push((dl.name.clone(), dl.dest_path.clone(), m.len()));
+                }
+            }
+        }
+        
+        if all_isos.is_empty() {
+            Frame::none().fill(card_bg).rounding(Rounding::same(8.0)).stroke(Stroke::new(1.0,brd)).inner_margin(12.0).show(ui, |ui| {
+                ui.label(egui::RichText::new("💿 No hay archivos ISO disponibles localmente ni descargados.").color(tc));
+            });
+        } else {
+            for (name, path, size) in all_isos {
+                let is_selected = target_iso.as_ref() == Some(&path);
+                let bg = if is_selected { match tema { Tema::Oscuro=>Color32::from_rgb(40,60,100), Tema::Claro=>Color32::from_rgb(220,230,250) } } else { card_bg };
+                let st = if is_selected { Stroke::new(2.0, Color32::from_rgb(80,140,255)) } else { Stroke::new(1.0, brd) };
+                
+                let resp = Frame::none().fill(bg).rounding(Rounding::same(8.0)).stroke(st).inner_margin(12.0)
+                .outer_margin(egui::Margin{left:0.0,right:0.0,top:0.0,bottom:8.0}).show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("💿").size(20.0)); ui.add_space(8.0);
+                        ui.vertical(|ui| {
+                            ui.label(egui::RichText::new(&name).size(14.0).strong().color(title_col));
+                            ui.label(egui::RichText::new(&path).size(11.0).color(tc).monospace());
+                        });
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(egui::RichText::new(format_size(size)).size(12.0).color(tc));
+                        });
+                    });
+                });
+                if resp.response.interact(egui::Sense::click()).clicked() {
+                    *target_iso = Some(path.clone());
+                }
+            }
+        }
+        ui.add_space(30.0);
+        
+        // --- BOTON FLASHEAR ---
+        ui.horizontal(|ui| {
+            ui.add_space(ui.available_width() / 2.0 - 100.0);
+            let btn_color = if op_active { Color32::from_rgb(80,80,90) } else { Color32::from_rgb(220,60,60) };
+            let btn = egui::Button::new(
+                egui::RichText::new("⚡ Flashear a Ventoy")
+                .size(16.0).strong().color(Color32::WHITE)
+            ).fill(btn_color).rounding(Rounding::same(8.0)).min_size(Vec2::new(200.0, 45.0));
+            
+            ui.add_enabled_ui(target_usb.is_some() && target_iso.is_some() && !op_active, |ui| {
+                if ui.add(btn).clicked() {
+                    if let (Some(u), Some(i)) = (target_usb.clone(), target_iso.clone()) {
+                        start_flash = Some((u, i));
+                    }
+                }
+            });
+        });
+        ui.add_space(20.0);
+    });
+    start_flash
+}
+
 fn draw_locales(ui: &mut egui::Ui, iso_files: &[IsoFile], scan_dir: &str, tema: &Tema, i18n: &HashMap<String,String>) -> bool {
     let tr = |k:&str| i18n.get(k).cloned().unwrap_or_else(|| k.to_string());
     let card_bg  = match tema { Tema::Oscuro=>Color32::from_rgb(22,22,32),    Tema::Claro=>Color32::WHITE };
@@ -1340,6 +1451,8 @@ struct IsoFlash {
     i18n: HashMap<String, String>,
     notif: Option<(String, f64)>,
     show_path_sug: bool, path_sug: Vec<String>,
+    flash_target_usb: Option<String>,
+    flash_target_iso: Option<String>,
     #[allow(dead_code)]
     first_init: bool,
 }
@@ -1375,6 +1488,7 @@ impl Default for IsoFlash {
             downloads, iso_files: vec![], config: AppConfig { download_dir, speed_limit },
             lang, i18n,
             notif: None, show_path_sug: false, path_sug: vec![],
+            flash_target_usb: None, flash_target_iso: None,
             first_init,
         }
     }
@@ -1391,6 +1505,162 @@ impl IsoFlash {
             result = result.replace(&format!("{{{}}}", i), arg);
         }
         result
+    }
+
+    fn start_flash_iso(&mut self, usb_path: String, iso_path: String) {
+        if self.op.active { return; }
+        self.op = OpProgress::default();
+        self.op.active = true;
+        self.op.label = format!("Flasheando ISO a {}", usb_path);
+        self.op.log(&format!("Preparando flasheo de {} a {}", iso_path, usb_path), LogLevel::Info);
+        
+        let (tx, rx) = channel::<(f32, String, LogLevel, bool)>();
+        let (ctx, crx) = channel::<()>();
+        self.op.cancel_tx = Some(ctx);
+        self.op_rx = Some(rx);
+        
+        std::thread::spawn(move || {
+            let cancelled = || crx.try_recv().is_ok();
+            let send = |p:f32, msg:&str, lvl:LogLevel, done:bool| { let _ = tx.send((p,msg.to_string(),lvl,done)); };
+            
+            // 1. Encontrar particion de Ventoy (usualmente particion 1)
+            let dev_name = usb_path.trim_start_matches("/dev/");
+            let mut ventoy_part = None;
+            if let Ok(entries) = std::fs::read_dir("/sys/class/block") {
+                for e in entries.flatten() {
+                    let pname = e.file_name().to_string_lossy().to_string();
+                    if !pname.starts_with(dev_name) || pname == dev_name { continue; }
+                    if let Ok(o) = Command::new("lsblk").args(["-n","-o","LABEL",&format!("/dev/{}", pname)]).output() {
+                        if String::from_utf8_lossy(&o.stdout).to_lowercase().trim() == "ventoy" {
+                            ventoy_part = Some(format!("/dev/{}", pname));
+                            break;
+                        }
+                    }
+                }
+            }
+            let part_path = match ventoy_part {
+                Some(p) => p,
+                None => {
+                    // Fallback: assume partition 1
+                    format!("{}1", usb_path)
+                }
+            };
+            
+            send(0.02, &format!("Usando particion Ventoy: {}", part_path), LogLevel::Info, false);
+            
+            // 2. Montar particion si no esta montada
+            let mut mount_point = None;
+            
+            if let Ok(o) = Command::new("lsblk").args(["-n","-o","MOUNTPOINT",&part_path]).output() {
+                let mp = String::from_utf8_lossy(&o.stdout).trim().to_string();
+                if !mp.is_empty() { mount_point = Some(mp); }
+            }
+            
+            if mount_point.is_none() {
+                send(0.05, "Montando particion de Ventoy...", LogLevel::Info, false);
+                let mo = Command::new("udisksctl").args(["mount", "-b", &part_path]).output();
+                if let Ok(o) = mo {
+                    let out = String::from_utf8_lossy(&o.stdout);
+                    if let Some(idx) = out.find(" at ") {
+                        let mp = out[idx+4..].trim().trim_end_matches('.');
+                        mount_point = Some(mp.to_string());
+                    }
+                }
+            }
+            
+            let dest_dir = match mount_point {
+                Some(p) => p,
+                None => {
+                    send(1.0, "Error: No se pudo montar la particion de Ventoy", LogLevel::Error, true);
+                    return;
+                }
+            };
+            
+            send(0.1, &format!("Particion montada en: {}", dest_dir), LogLevel::Ok, false);
+            
+            // 3. Validar espacio libre
+            let file_size = match std::fs::metadata(&iso_path) {
+                Ok(m) => m.len(),
+                Err(e) => {
+                    send(1.0, &format!("Error al leer ISO: {}", e), LogLevel::Error, true);
+                    return;
+                }
+            };
+            
+            if let Ok(o) = Command::new("df").args(["--output=avail", "-B1", &dest_dir]).output() {
+                let out = String::from_utf8_lossy(&o.stdout);
+                if let Some(avail_str) = out.lines().nth(1) {
+                    if let Ok(avail) = avail_str.trim().parse::<u64>() {
+                        if avail < file_size {
+                            send(1.0, "Cancelado: No hay espacio suficiente en el USB.", LogLevel::Error, true);
+                            return;
+                        }
+                    }
+                }
+            }
+            
+            // 4. Copiar archivo
+            let iso_name = std::path::Path::new(&iso_path).file_name().unwrap_or_default().to_string_lossy();
+            let dest_file = format!("{}/{}", dest_dir, iso_name);
+            
+            send(0.15, &format!("Copiando {} ...", iso_name), LogLevel::Info, false);
+            
+            let mut src = match std::fs::File::open(&iso_path) {
+                Ok(f) => f,
+                Err(e) => { send(1.0, &format!("Error abriendo ISO: {}", e), LogLevel::Error, true); return; }
+            };
+            
+            let mut dst = match std::fs::File::create(&dest_file) {
+                Ok(f) => f,
+                Err(e) => { send(1.0, &format!("Error creando archivo destino: {}", e), LogLevel::Error, true); return; }
+            };
+            
+            let mut buffer = vec![0u8; 4 * 1024 * 1024]; // 4MB buffer
+            let mut copied = 0u64;
+            let mut last_report = std::time::Instant::now();
+            let mut last_copied = 0u64;
+            
+            use std::io::{Read, Write};
+            
+            loop {
+                if cancelled() {
+                    send(1.0, "Operacion cancelada", LogLevel::Warn, true);
+                    let _ = std::fs::remove_file(&dest_file);
+                    return;
+                }
+                match src.read(&mut buffer) {
+                    Ok(0) => break, // EOF
+                    Ok(n) => {
+                        if let Err(e) = dst.write_all(&buffer[..n]) {
+                            send(1.0, &format!("Error de escritura: {}", e), LogLevel::Error, true);
+                            return;
+                        }
+                        copied += n as u64;
+                    }
+                    Err(e) => {
+                        send(1.0, &format!("Error de lectura: {}", e), LogLevel::Error, true);
+                        return;
+                    }
+                }
+                
+                let now = std::time::Instant::now();
+                if now.duration_since(last_report).as_millis() > 500 {
+                    let progress = 0.15 + (0.80 * (copied as f32 / file_size as f32));
+                    let speed = (copied - last_copied) as f64 / now.duration_since(last_report).as_secs_f64();
+                    send(progress, &format!("Copiando: {} / {} ({} / s)", 
+                        format_size(copied), format_size(file_size), format_size(speed as u64)
+                    ), LogLevel::Info, false);
+                    last_report = now;
+                    last_copied = copied;
+                }
+            }
+            
+            // 5. Sync
+            send(0.95, "Sincronizando disco (no extraiga el USB)...", LogLevel::Warn, false);
+            let _ = Command::new("sync").args(["-f", &dest_dir]).output();
+            
+            send(1.0, "Flasheo completado correctamente", LogLevel::Ok, true);
+        });
     }
 
     fn set_language(&mut self, lang: Language) {
@@ -1880,6 +2150,11 @@ impl eframe::App for IsoFlash {
                   }
               }
               Panel::Configuracion => draw_configuracion(ui, &mut self.config, &self.path_sug.clone(), &mut self.show_path_sug, &self.tema, &self.i18n, &mut self.lang, &mut lang_changed),
+              Panel::Flasheo => {
+                  if let Some((u, i)) = draw_flasheo(ui, &self.usbs, &self.iso_files, &self.downloads, &mut self.flash_target_usb, &mut self.flash_target_iso, &self.tema, &self.i18n, op_active) {
+                      self.start_flash_iso(u, i);
+                  }
+              }
               Panel::Logs => draw_logs(ui, ctx, &mut self.op, &self.tema, &self.i18n),
               _ => {
                   let c = match self.tema { Tema::Oscuro=>Color32::from_rgb(130,140,160), Tema::Claro=>Color32::from_rgb(100,110,140) };
@@ -1934,7 +2209,10 @@ impl eframe::App for IsoFlash {
                     self.op.active = false;
                     self.op.log("Operacion cancelada por el usuario", LogLevel::Warn);
                 }
-                DashAction::GoFlash(_) => self.panel = Panel::Flasheo,
+                DashAction::GoFlash(path) => {
+                    self.flash_target_usb = Some(path);
+                    self.panel = Panel::Flasheo;
+                }
             }
         }
     }
