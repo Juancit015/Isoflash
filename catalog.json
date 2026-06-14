@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0",
-  "updated": "2026-06-08",
+  "version": "2.1.0",
+  "updated": "2026-06-14",
   "distros": [
     {
       "id": "arch",
@@ -284,8 +284,8 @@
       "description": "Estable, universal, base de Ubuntu y cientos de distros",
       "category": "lts",
       "arch": "x86_64",
-      "size_mb": 700,
-      "url": "https://cdimage.debian.org/cdimage/daily-builds/daily/arch-latest/amd64/iso-cd/debian-testing-amd64-netinst.iso",
+      "size_mb": 755,
+      "url": "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-13.5.0-amd64-netinst.iso",
       "is_windows": false
     },
     {
@@ -296,7 +296,7 @@
       "category": "lts",
       "arch": "x86_64",
       "size_mb": 2700,
-      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-x86_64-44-1.1.iso",
+      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-44-1.7.x86_64.iso",
       "is_windows": false
     },
     {
@@ -307,7 +307,7 @@
       "category": "lts",
       "arch": "x86_64",
       "size_mb": 2600,
-      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-KDE-Live-x86_64-44-1.1.iso",
+      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-KDE-Live-44-1.7.x86_64.iso",
       "is_windows": false
     },
     {
@@ -318,7 +318,7 @@
       "category": "lts",
       "arch": "x86_64",
       "size_mb": 2700,
-      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-Xfce-Live-x86_64-44-1.1.iso",
+      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-Xfce-Live-44-1.7.x86_64.iso",
       "is_windows": false
     },
     {
@@ -329,7 +329,7 @@
       "category": "lts",
       "arch": "x86_64",
       "size_mb": 3000,
-      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-Cinnamon-Live-x86_64-44-1.1.iso",
+      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-Cinnamon-Live-44-1.7.x86_64.iso",
       "is_windows": false
     },
     {
@@ -340,7 +340,7 @@
       "category": "lts",
       "arch": "x86_64",
       "size_mb": 3000,
-      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-MATE_Compiz-Live-x86_64-44-1.1.iso",
+      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-MATE_Compiz-Live-44-1.7.x86_64.iso",
       "is_windows": false
     },
     {
@@ -351,7 +351,7 @@
       "category": "lts",
       "arch": "x86_64",
       "size_mb": 2300,
-      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-i3-Live-x86_64-44-1.1.iso",
+      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-i3-Live-44-1.7.x86_64.iso",
       "is_windows": false
     },
     {
@@ -362,7 +362,7 @@
       "category": "lts",
       "arch": "x86_64",
       "size_mb": 2300,
-      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-LXQt-Live-x86_64-44-1.1.iso",
+      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-LXQt-Live-44-1.7.x86_64.iso",
       "is_windows": false
     },
     {
@@ -373,7 +373,7 @@
       "category": "lts",
       "arch": "x86_64",
       "size_mb": 2200,
-      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-Sway-Live-x86_64-44-1.1.iso",
+      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Spins/x86_64/iso/Fedora-Sway-Live-44-1.7.x86_64.iso",
       "is_windows": false
     },
     {
@@ -428,7 +428,7 @@
       "category": "lts",
       "arch": "x86_64",
       "size_mb": 2400,
-      "url": "https://sourceforge.net/projects/mx-linux/files/Final/Xfce/MX-25.2_x64.iso",
+      "url": "https://sourceforge.net/projects/mx-linux/files/Final/Xfce/MX-25.2_x64.iso/download",
       "is_windows": false
     },
     {
@@ -439,7 +439,7 @@
       "category": "lts",
       "arch": "x86_64",
       "size_mb": 2800,
-      "url": "https://sourceforge.net/projects/mx-linux/files/Final/KDE/MX-25.2_KDE_x64.iso",
+      "url": "https://sourceforge.net/projects/mx-linux/files/Final/KDE/MX-25.2_KDE_x64.iso/download",
       "is_windows": false
     },
     {
@@ -450,7 +450,7 @@
       "category": "lts",
       "arch": "x86_64",
       "size_mb": 2000,
-      "url": "https://sourceforge.net/projects/mx-linux/files/Final/Fluxbox/MX-25.2_fluxbox_x64.iso",
+      "url": "https://sourceforge.net/projects/mx-linux/files/Final/Fluxbox/MX-25.2_fluxbox_x64.iso/download",
       "is_windows": false
     },
     {
@@ -477,46 +477,46 @@
     },
     {
       "id": "q4os-plasma",
-      "name": "Q4OS 6.6 Andromeda (Plasma)",
+      "name": "Q4OS 6.7 Andromeda (Plasma)",
       "logo": "q4os.svg",
-      "description": "Debian base, KDE Plasma, ideal para PCs viejos con buena GPU",
+      "description": "Debian 13.5 base, KDE Plasma, ideal para PCs viejos con buena GPU",
       "category": "lts",
       "arch": "x86_64",
       "size_mb": 1782,
-      "url": "https://sourceforge.net/projects/q4os/files/stable/q4os-6.6-x64.r1.iso",
+      "url": "https://sourceforge.net/projects/q4os/files/stable/q4os-6.7-x64.r1.iso/download",
       "is_windows": false
     },
     {
       "id": "q4os-trinity",
-      "name": "Q4OS 6.6 Andromeda (Trinity)",
+      "name": "Q4OS 6.7 Andromeda (Trinity)",
       "logo": "q4os.svg",
-      "description": "Debian base, Trinity DE (estilo KDE 3), ultra ligero, 512MB RAM",
+      "description": "Debian 13.5 base, Trinity DE (estilo KDE 3), ultra ligero, 512MB RAM",
       "category": "lts",
       "arch": "x86_64",
       "size_mb": 1418,
-      "url": "https://sourceforge.net/projects/q4os/files/stable/q4os-6.6-trinity-x64.r1.iso",
+      "url": "https://sourceforge.net/projects/q4os/files/stable/q4os-6.7-trinity-x64.r1.iso/download",
       "is_windows": false
     },
     {
       "id": "antix-26-full",
       "name": "antiX 26 Full (x86_64)",
       "logo": "antix.svg",
-      "description": "Sin systemd/elogind, 4 WMs, LibreOffice incluido, 2 kernels",
+      "description": "Sin systemd/elogind, 5 init disponibles (sysvinit/runit/etc), 4 WMs, LibreOffice, 2 kernels",
       "category": "nosystemd",
       "arch": "x86_64",
       "size_mb": 1800,
-      "url": "https://sourceforge.net/projects/antix-linux/files/Final/antiX-26/antiX-26_x64-full.iso",
+      "url": "https://sourceforge.net/projects/antix-linux/files/Final/antiX-26/antiX-26_x64-full.iso/download",
       "is_windows": false
     },
     {
       "id": "antix-26-core",
       "name": "antiX 26 Core (x86_64)",
       "logo": "antix.svg",
-      "description": "Sin systemd, sin X11, soporte wireless, base para construir",
+      "description": "Sin systemd, 5 init disponibles, sin X11, soporte wireless, base para construir",
       "category": "nosystemd",
       "arch": "x86_64",
       "size_mb": 520,
-      "url": "https://sourceforge.net/projects/antix-linux/files/Final/antiX-26/antiX-26_x64-core.iso",
+      "url": "https://sourceforge.net/projects/antix-linux/files/Final/antiX-26/antiX-26_x64-core.iso/download",
       "is_windows": false
     },
     {
@@ -527,7 +527,7 @@
       "category": "nosystemd",
       "arch": "i386",
       "size_mb": 1700,
-      "url": "https://sourceforge.net/projects/antix-linux/files/Final/antiX-26/antiX-26_386-full.iso",
+      "url": "https://sourceforge.net/projects/antix-linux/files/Final/antiX-26/antiX-26_386-full.iso/download",
       "is_windows": false
     },
     {
@@ -538,7 +538,106 @@
       "category": "nosystemd",
       "arch": "i386",
       "size_mb": 500,
-      "url": "https://sourceforge.net/projects/antix-linux/files/Final/antiX-26/antiX-26_386-core.iso",
+      "url": "https://sourceforge.net/projects/antix-linux/files/Final/antiX-26/antiX-26_386-core.iso/download",
+      "is_windows": false
+    },
+    {
+      "id": "devuan-excalibur-desktop",
+      "name": "Devuan 6.1 Excalibur (Desktop Live, Xfce)",
+      "logo": "devuan.svg",
+      "description": "Debian sin systemd, init sysvinit (Init Freedom), live Xfce arrancable",
+      "category": "nosystemd",
+      "arch": "x86_64",
+      "size_mb": 2000,
+      "url": "https://files.devuan.org/devuan_excalibur/desktop-live/devuan_excalibur_6.1.1_amd64_desktop-live.iso",
+      "is_windows": false
+    },
+    {
+      "id": "devuan-excalibur-netinstall",
+      "name": "Devuan 6.1 Excalibur (Netinstall)",
+      "logo": "devuan.svg",
+      "description": "Debian sin systemd, init sysvinit, instalacion minima por red (~600MB)",
+      "category": "nosystemd",
+      "arch": "x86_64",
+      "size_mb": 600,
+      "url": "https://files.devuan.org/devuan_excalibur/installer-iso/devuan_excalibur_6.1.1_amd64_netinstall.iso",
+      "is_windows": false
+    },
+    {
+      "id": "devuan-excalibur-dvd",
+      "name": "Devuan 6.1 Excalibur (Desktop DVD)",
+      "logo": "devuan.svg",
+      "description": "Debian sin systemd, init sysvinit, DVD offline con KDE/MATE/Xfce/LXQt/LXDE",
+      "category": "nosystemd",
+      "arch": "x86_64",
+      "size_mb": 4200,
+      "url": "https://files.devuan.org/devuan_excalibur/installer-iso/devuan_excalibur_6.1.1_amd64_desktop.iso",
+      "is_windows": false
+    },
+    {
+      "id": "artix-base-openrc",
+      "name": "Artix Linux Base (OpenRC)",
+      "logo": "artix.svg",
+      "description": "Arch rolling sin systemd, init OpenRC, instalacion por consola (basestrap)",
+      "category": "nosystemd",
+      "arch": "x86_64",
+      "size_mb": 1300,
+      "url": "https://mirrors.dotsrc.org/artix-linux/iso/artix-base-openrc-20260402-x86_64.iso",
+      "is_windows": false
+    },
+    {
+      "id": "artix-base-runit",
+      "name": "Artix Linux Base (Runit)",
+      "logo": "artix.svg",
+      "description": "Arch rolling sin systemd, init runit (igual filosofia que Void), consola",
+      "category": "nosystemd",
+      "arch": "x86_64",
+      "size_mb": 1300,
+      "url": "https://mirrors.dotsrc.org/artix-linux/iso/artix-base-runit-20260402-x86_64.iso",
+      "is_windows": false
+    },
+    {
+      "id": "artix-base-s6",
+      "name": "Artix Linux Base (s6)",
+      "logo": "artix.svg",
+      "description": "Arch rolling sin systemd, init s6 (supervision ligera), consola",
+      "category": "nosystemd",
+      "arch": "x86_64",
+      "size_mb": 1300,
+      "url": "https://mirrors.dotsrc.org/artix-linux/iso/artix-base-s6-20260402-x86_64.iso",
+      "is_windows": false
+    },
+    {
+      "id": "artix-base-dinit",
+      "name": "Artix Linux Base (Dinit)",
+      "logo": "artix.svg",
+      "description": "Arch rolling sin systemd, init dinit (moderno, escrito en C++), consola",
+      "category": "nosystemd",
+      "arch": "x86_64",
+      "size_mb": 1300,
+      "url": "https://mirrors.dotsrc.org/artix-linux/iso/artix-base-dinit-20260402-x86_64.iso",
+      "is_windows": false
+    },
+    {
+      "id": "artix-xfce-openrc",
+      "name": "Artix Linux Xfce (OpenRC)",
+      "logo": "artix.svg",
+      "description": "Arch rolling sin systemd con Xfce 4.20 listo, init OpenRC, ideal para iniciar",
+      "category": "nosystemd",
+      "arch": "x86_64",
+      "size_mb": 2000,
+      "url": "https://mirrors.dotsrc.org/artix-linux/iso/artix-xfce-openrc-20260420-x86_64.iso",
+      "is_windows": false
+    },
+    {
+      "id": "artix-xfce-runit",
+      "name": "Artix Linux Xfce (Runit)",
+      "logo": "artix.svg",
+      "description": "Arch rolling sin systemd con Xfce 4.20 listo, init runit, ideal para iniciar",
+      "category": "nosystemd",
+      "arch": "x86_64",
+      "size_mb": 2000,
+      "url": "https://mirrors.dotsrc.org/artix-linux/iso/artix-xfce-runit-20260420-x86_64.iso",
       "is_windows": false
     },
     {
@@ -578,11 +677,11 @@
       "id": "debian-13-net",
       "name": "Debian 13 Netinstall",
       "logo": "debian.svg",
-      "description": "Instalacion minima por red, ~700 MB, base universal de servidores",
+      "description": "Instalacion minima por red, ~755 MB, base universal de servidores",
       "category": "server",
       "arch": "x86_64",
-      "size_mb": 700,
-      "url": "https://cdimage.debian.org/cdimage/daily-builds/daily/arch-latest/amd64/iso-cd/debian-testing-amd64-netinst.iso",
+      "size_mb": 755,
+      "url": "https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-13.5.0-amd64-netinst.iso",
       "is_windows": false
     },
     {
@@ -597,14 +696,14 @@
       "is_windows": false
     },
     {
-      "id": "rocky-95",
-      "name": "Rocky Linux 9.5",
+      "id": "rocky-98",
+      "name": "Rocky Linux 9.8",
       "logo": "rocky.svg",
       "description": "Otro reemplazo CentOS, 1:1 RHEL 9, muy usado en produccion",
       "category": "server",
       "arch": "x86_64",
       "size_mb": 2200,
-      "url": "https://download.rockylinux.org/pub/rocky/9/isos/x86_64/Rocky-9.5-x86_64-minimal.iso",
+      "url": "https://download.rockylinux.org/pub/rocky/9/isos/x86_64/Rocky-9.8-x86_64-minimal.iso",
       "is_windows": false
     },
     {
@@ -615,7 +714,7 @@
       "category": "server",
       "arch": "x86_64",
       "size_mb": 2200,
-      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Server/x86_64/iso/Fedora-Server-dvd-x86_64-44-1.1.iso",
+      "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Server/x86_64/iso/Fedora-Server-dvd-44-1.7.x86_64.iso",
       "is_windows": false
     },
     {
@@ -630,14 +729,14 @@
       "is_windows": false
     },
     {
-      "id": "tails-781",
-      "name": "Tails 7.8.1",
+      "id": "tails-78",
+      "name": "Tails 7.8",
       "logo": "tails.svg",
       "description": "Privacidad total via Tor, deja cero rastros en el sistema",
       "category": "security",
       "arch": "x86_64",
       "size_mb": 1800,
-      "url": "https://download.tails.net/tails/stable/tails-amd64-7.8.1/tails-amd64-7.8.1.img",
+      "url": "https://download.tails.net/tails/stable/tails-amd64-7.8/tails-amd64-7.8.img",
       "is_windows": false
     },
     {
@@ -659,7 +758,7 @@
       "category": "gaming",
       "arch": "x86_64",
       "size_mb": 6600,
-      "url": "https://nobara-images.nobaraproject.org/Nobara-43-Official-2026-04-19.iso",
+      "url": "https://nobara-images.nobaraproject.org/Nobara-43-Official-2026-04-25.iso",
       "is_windows": false
     },
     {
