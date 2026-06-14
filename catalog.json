@@ -4,7 +4,7 @@
   "distros": [
     {
       "id": "arch",
-      "name": "lrch Linux",
+      "name": "Arch Linux",
       "logo": "arch.svg",
       "description": "Rolling release minimalista, para expertos. Sin systemd restricciones.",
       "category": "rolling",
